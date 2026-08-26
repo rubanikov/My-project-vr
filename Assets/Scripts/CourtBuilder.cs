@@ -23,6 +23,14 @@ public class CourtBuilder : MonoBehaviour
     [SerializeField] private float fallbackHalfWidth = 2.5f;
     [SerializeField] private float fallbackHalfDepth = 2.5f;
 
+    [Header("Padel additions (2026-08-26 conversion — net splits the halves, tall ceiling contains lobs)")]
+    [SerializeField] private float netHeight = 0.9f;
+    [Tooltip("Well above the 2.5m walls so it's rarely hit; the band between wall top and " +
+        "ceiling is closed with invisible collider panels so the ball can never leave.")]
+    [SerializeField] private float ceilingHeight = 4f;
+    [SerializeField] private Material netMaterial;
+    [SerializeField] private Material ceilingMaterial;
+
     [Header("Shape")]
     [Tooltip("Was 8 individually-tilted panels arranged in a ring — each one leaning inward by " +
         "a random amount left visible gaps between neighbors (confirmed in playtesting). " +
@@ -66,6 +74,9 @@ public class CourtBuilder : MonoBehaviour
 
         BuildFloor(halfExtents);
         BuildWalls(halfExtents);
+        BuildNet(halfExtents);
+        BuildCeiling(halfExtents);
+        BuildWallExtensions(halfExtents);
 
         HalfExtents = halfExtents;
         CourtBuilt?.Invoke(halfExtents);
@@ -130,6 +141,60 @@ public class CourtBuilder : MonoBehaviour
         wall.transform.localRotation = localRotation;
         wall.transform.localScale = localScale;
         ApplyMaterial(wall, wallMaterial);
+    }
+
+    // Mid-court net at z=0, spanning the full width. A solid obstacle, not a
+    // rule surface — a ball that fails to clear it dies on the hitter's half
+    // and the floor-bounce rules award the point.
+    private void BuildNet(Vector3 halfExtents)
+    {
+        GameObject net = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        net.name = "CourtNet";
+        net.transform.SetParent(transform, false);
+        net.transform.localScale = new Vector3(halfExtents.x * 2f, netHeight, 0.04f);
+        net.transform.localPosition = new Vector3(0f, netHeight * 0.5f, 0f);
+        ApplyMaterial(net, netMaterial != null ? netMaterial : wallMaterial);
+    }
+
+    // Visible lid well above the walls. Free ricochet surface — purely
+    // containment (user decision 2026-08-26).
+    private void BuildCeiling(Vector3 halfExtents)
+    {
+        GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        ceiling.name = "CourtCeiling";
+        ceiling.transform.SetParent(transform, false);
+        ceiling.transform.localScale = new Vector3(halfExtents.x * 2f, 0.1f, halfExtents.z * 2f);
+        ceiling.transform.localPosition = new Vector3(0f, ceilingHeight + 0.05f, 0f);
+        ApplyMaterial(ceiling, ceilingMaterial != null ? ceilingMaterial : wallMaterial);
+    }
+
+    // Invisible collider panels closing the band between the wall tops and
+    // the ceiling, so the ball physically cannot leave the court sideways.
+    private void BuildWallExtensions(Vector3 halfExtents)
+    {
+        float bandHeight = ceilingHeight - wallHeight;
+        if (bandHeight <= 0f) return;
+        float bandCenterY = wallHeight + bandHeight * 0.5f;
+        float fullWidth = halfExtents.x * 2f;
+        float fullDepth = halfExtents.z * 2f;
+
+        BuildInvisiblePanel("CourtWallExt_North", new Vector3(0f, bandCenterY, halfExtents.z),
+            new Vector3(fullWidth, bandHeight, wallThickness));
+        BuildInvisiblePanel("CourtWallExt_South", new Vector3(0f, bandCenterY, -halfExtents.z),
+            new Vector3(fullWidth, bandHeight, wallThickness));
+        BuildInvisiblePanel("CourtWallExt_East", new Vector3(halfExtents.x, bandCenterY, 0f),
+            new Vector3(wallThickness, bandHeight, fullDepth));
+        BuildInvisiblePanel("CourtWallExt_West", new Vector3(-halfExtents.x, bandCenterY, 0f),
+            new Vector3(wallThickness, bandHeight, fullDepth));
+    }
+
+    private void BuildInvisiblePanel(string name, Vector3 localPosition, Vector3 size)
+    {
+        var panel = new GameObject(name);
+        panel.transform.SetParent(transform, false);
+        panel.transform.localPosition = localPosition;
+        BoxCollider box = panel.AddComponent<BoxCollider>();
+        box.size = size;
     }
 
     private void ApplyMaterial(GameObject target, Material material)
