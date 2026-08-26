@@ -13,6 +13,9 @@ public class BallFaultTracker : MonoBehaviour
 {
     private const string FloorName = "CourtFloor";
 
+    [Tooltip("Source of the net's Z position — the halves boundary. Falls back to z=0 when unwired.")]
+    [SerializeField] private CourtBuilder courtBuilder;
+
     private readonly PadelRallyRule rule = new PadelRallyRule();
 
     // Fires with the side that WINS the point and why.
@@ -26,8 +29,10 @@ public class BallFaultTracker : MonoBehaviour
     {
         if (collision.gameObject.name != FloorName) return;
 
-        // The net sits at z=0: positive z is the player's half.
-        Side bounceHalf = transform.position.z >= 0f ? Side.Player : Side.AI;
+        // The player's half is everything on the player's side of the net
+        // (the net sits at the front edge of the Guardian area, not z=0).
+        float netZ = courtBuilder != null ? courtBuilder.NetZ : 0f;
+        Side bounceHalf = transform.position.z >= netZ ? Side.Player : Side.AI;
         Resolve(rule.RegisterFloorBounce(bounceHalf));
     }
 

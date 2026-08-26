@@ -50,7 +50,7 @@ public class Scoreboard : MonoBehaviour
     private void OnCourtBuilt(Vector3 halfExtents)
     {
         // Just inside the far (AI-side) wall, facing the player at +Z.
-        transform.position = new Vector3(0f, heightOnWall, -halfExtents.z + 0.12f);
+        transform.position = new Vector3(0f, heightOnWall, courtBuilder.CourtMinZ + 0.12f);
         transform.rotation = Quaternion.Euler(0f, 180f, 0f);
         BuildVisuals();
         ShowIdleState();

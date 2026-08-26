@@ -15,6 +15,16 @@ public class CourtBuilder : MonoBehaviour
     public event Action<Vector3> CourtBuilt;
     public Vector3 HalfExtents { get; private set; }
 
+    // Court geometry (2026-08-26, "fit the player part to the boundary"):
+    // the PLAYER'S HALF is the entire Guardian play area — the net sits at
+    // the front edge of the physical room (z = -HalfExtents.z) and the AI's
+    // half mirrors it virtually beyond the wall. Court depth is therefore
+    // twice the Guardian depth, centered on the net.
+    public float NetZ { get; private set; }
+    public float HalfDepthPerSide { get; private set; } // depth of each half (= full Guardian depth)
+    public float CourtMinZ => NetZ - HalfDepthPerSide;  // far wall behind the AI
+    public float CourtMaxZ => NetZ + HalfDepthPerSide;  // wall behind the player
+
     [Header("Fallback size (used when no Guardian boundary is available, e.g. Editor Play mode)")]
     [Tooltip("Was 1m — too small relative to wallHeight (2.5m), reading as a tall narrow " +
         "cone/tower instead of a room, and leaving too little margin for AI positioning near " +
@@ -72,13 +82,19 @@ public class CourtBuilder : MonoBehaviour
             yield return null;
         }
 
-        BuildFloor(halfExtents);
-        BuildWalls(halfExtents);
-        BuildNet(halfExtents);
-        BuildCeiling(halfExtents);
-        BuildWallExtensions(halfExtents);
-
+        // The net sits at the front edge of the physical play area; the court
+        // is symmetric around it, each half as deep as the whole Guardian area.
         HalfExtents = halfExtents;
+        NetZ = -halfExtents.z;
+        HalfDepthPerSide = halfExtents.z * 2f;
+        var courtHalf = new Vector3(halfExtents.x, 0f, HalfDepthPerSide);
+
+        BuildFloor(courtHalf, NetZ);
+        BuildWalls(courtHalf, NetZ);
+        BuildNet(courtHalf, NetZ);
+        BuildCeiling(courtHalf, NetZ);
+        BuildWallExtensions(courtHalf, NetZ);
+
         CourtBuilt?.Invoke(halfExtents);
     }
 
@@ -105,30 +121,30 @@ public class CourtBuilder : MonoBehaviour
         return false;
     }
 
-    private void BuildFloor(Vector3 halfExtents)
+    private void BuildFloor(Vector3 courtHalf, float centerZ)
     {
         GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
         floor.name = "CourtFloor";
         floor.transform.SetParent(transform, false);
-        floor.transform.localScale = new Vector3(halfExtents.x * 2f, 0.1f, halfExtents.z * 2f);
-        floor.transform.localPosition = new Vector3(0f, -0.05f, 0f);
+        floor.transform.localScale = new Vector3(courtHalf.x * 2f, 0.1f, courtHalf.z * 2f);
+        floor.transform.localPosition = new Vector3(0f, -0.05f, centerZ);
         ApplyMaterial(floor, floorMaterial);
     }
 
     // Four flat walls forming a rectangular room, flush at the corners.
-    private void BuildWalls(Vector3 halfExtents)
+    private void BuildWalls(Vector3 courtHalf, float centerZ)
     {
-        float fullWidth = halfExtents.x * 2f;
-        float fullDepth = halfExtents.z * 2f;
+        float fullWidth = courtHalf.x * 2f;
+        float fullDepth = courtHalf.z * 2f;
         float halfHeight = wallHeight * 0.5f;
 
-        BuildWall("CourtWall_North", new Vector3(0f, halfHeight, halfExtents.z),
+        BuildWall("CourtWall_North", new Vector3(0f, halfHeight, centerZ + courtHalf.z),
             Quaternion.identity, new Vector3(fullWidth, wallHeight, wallThickness));
-        BuildWall("CourtWall_South", new Vector3(0f, halfHeight, -halfExtents.z),
+        BuildWall("CourtWall_South", new Vector3(0f, halfHeight, centerZ - courtHalf.z),
             Quaternion.Euler(0f, 180f, 0f), new Vector3(fullWidth, wallHeight, wallThickness));
-        BuildWall("CourtWall_East", new Vector3(halfExtents.x, halfHeight, 0f),
+        BuildWall("CourtWall_East", new Vector3(courtHalf.x, halfHeight, centerZ),
             Quaternion.Euler(0f, 90f, 0f), new Vector3(fullDepth, wallHeight, wallThickness));
-        BuildWall("CourtWall_West", new Vector3(-halfExtents.x, halfHeight, 0f),
+        BuildWall("CourtWall_West", new Vector3(-courtHalf.x, halfHeight, centerZ),
             Quaternion.Euler(0f, -90f, 0f), new Vector3(fullDepth, wallHeight, wallThickness));
     }
 
@@ -146,45 +162,45 @@ public class CourtBuilder : MonoBehaviour
     // Mid-court net at z=0, spanning the full width. A solid obstacle, not a
     // rule surface — a ball that fails to clear it dies on the hitter's half
     // and the floor-bounce rules award the point.
-    private void BuildNet(Vector3 halfExtents)
+    private void BuildNet(Vector3 courtHalf, float netZ)
     {
         GameObject net = GameObject.CreatePrimitive(PrimitiveType.Cube);
         net.name = "CourtNet";
         net.transform.SetParent(transform, false);
-        net.transform.localScale = new Vector3(halfExtents.x * 2f, netHeight, 0.04f);
-        net.transform.localPosition = new Vector3(0f, netHeight * 0.5f, 0f);
+        net.transform.localScale = new Vector3(courtHalf.x * 2f, netHeight, 0.04f);
+        net.transform.localPosition = new Vector3(0f, netHeight * 0.5f, netZ);
         ApplyMaterial(net, netMaterial != null ? netMaterial : wallMaterial);
     }
 
     // Visible lid well above the walls. Free ricochet surface — purely
     // containment (user decision 2026-08-26).
-    private void BuildCeiling(Vector3 halfExtents)
+    private void BuildCeiling(Vector3 courtHalf, float centerZ)
     {
         GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
         ceiling.name = "CourtCeiling";
         ceiling.transform.SetParent(transform, false);
-        ceiling.transform.localScale = new Vector3(halfExtents.x * 2f, 0.1f, halfExtents.z * 2f);
-        ceiling.transform.localPosition = new Vector3(0f, ceilingHeight + 0.05f, 0f);
+        ceiling.transform.localScale = new Vector3(courtHalf.x * 2f, 0.1f, courtHalf.z * 2f);
+        ceiling.transform.localPosition = new Vector3(0f, ceilingHeight + 0.05f, centerZ);
         ApplyMaterial(ceiling, ceilingMaterial != null ? ceilingMaterial : wallMaterial);
     }
 
     // Invisible collider panels closing the band between the wall tops and
     // the ceiling, so the ball physically cannot leave the court sideways.
-    private void BuildWallExtensions(Vector3 halfExtents)
+    private void BuildWallExtensions(Vector3 courtHalf, float centerZ)
     {
         float bandHeight = ceilingHeight - wallHeight;
         if (bandHeight <= 0f) return;
         float bandCenterY = wallHeight + bandHeight * 0.5f;
-        float fullWidth = halfExtents.x * 2f;
-        float fullDepth = halfExtents.z * 2f;
+        float fullWidth = courtHalf.x * 2f;
+        float fullDepth = courtHalf.z * 2f;
 
-        BuildInvisiblePanel("CourtWallExt_North", new Vector3(0f, bandCenterY, halfExtents.z),
+        BuildInvisiblePanel("CourtWallExt_North", new Vector3(0f, bandCenterY, centerZ + courtHalf.z),
             new Vector3(fullWidth, bandHeight, wallThickness));
-        BuildInvisiblePanel("CourtWallExt_South", new Vector3(0f, bandCenterY, -halfExtents.z),
+        BuildInvisiblePanel("CourtWallExt_South", new Vector3(0f, bandCenterY, centerZ - courtHalf.z),
             new Vector3(fullWidth, bandHeight, wallThickness));
-        BuildInvisiblePanel("CourtWallExt_East", new Vector3(halfExtents.x, bandCenterY, 0f),
+        BuildInvisiblePanel("CourtWallExt_East", new Vector3(courtHalf.x, bandCenterY, centerZ),
             new Vector3(wallThickness, bandHeight, fullDepth));
-        BuildInvisiblePanel("CourtWallExt_West", new Vector3(-halfExtents.x, bandCenterY, 0f),
+        BuildInvisiblePanel("CourtWallExt_West", new Vector3(-courtHalf.x, bandCenterY, centerZ),
             new Vector3(wallThickness, bandHeight, fullDepth));
     }
 

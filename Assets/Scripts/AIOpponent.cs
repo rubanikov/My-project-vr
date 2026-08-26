@@ -24,9 +24,7 @@ public class AIOpponent : MonoBehaviour
     [SerializeField] private CourtBuilder courtBuilder;
     [SerializeField] private Transform racketVisual;
 
-    private const float TunedHalfExtent = 2.5f;
-
-    [Header("Positioning (tuned for 2.5m half-extents; rescaled by OnCourtBuilt)")]
+    [Header("Positioning (rescaled to the real court by OnCourtBuilt)")]
     [SerializeField] private float baselineY = 1f;
     [Tooltip("Horizontal reach for a swing. Deliberately larger than the body capsule so the " +
         "racket connects before the ball can reach the Body Hit sensor.")]
@@ -48,11 +46,14 @@ public class AIOpponent : MonoBehaviour
     [Tooltip("A slower ball can't score a Body Hit — a dead ball rolling into the AI is not a point.")]
     [SerializeField] private float minBodyHitBallSpeed = 1f;
 
-    // Court dimensions, rescaled from the tuned 2.5m baseline once the real
-    // court size is known (same pattern as v1 — the AI once failed to show up
-    // on-device because its authored position sat outside a smaller room).
+    // Court geometry, taken from CourtBuilder once the real size is known
+    // (the AI once failed to show up on-device because its authored position
+    // sat outside a smaller room). The AI's half spans [netZ - halfDepth,
+    // netZ] — the net sits at the front edge of the player's Guardian area,
+    // so netZ is negative, not zero.
     private float halfWidth = 2.2f;
     private float halfDepth = 2.5f;
+    private float netZ;
     private Vector3 homePosition;
 
     private float? interceptX;
@@ -85,12 +86,10 @@ public class AIOpponent : MonoBehaviour
 
     private void OnCourtBuilt(Vector3 halfExtents)
     {
-        float scaleX = halfExtents.x / TunedHalfExtent;
-        float scaleZ = halfExtents.z / TunedHalfExtent;
-
-        halfWidth = 2.2f * scaleX;
-        halfDepth = halfExtents.z;
-        homePosition = new Vector3(0f, baselineY, -1.6f * scaleZ);
+        halfWidth = Mathf.Max(halfExtents.x - 0.3f, 0.5f);
+        halfDepth = courtBuilder.HalfDepthPerSide;
+        netZ = courtBuilder.NetZ;
+        homePosition = new Vector3(0f, baselineY, netZ - halfDepth * 0.6f);
         transform.position = homePosition;
     }
 
@@ -134,7 +133,7 @@ public class AIOpponent : MonoBehaviour
     private void TryStrike()
     {
         if (Time.time - lastShotTime < 0.5f) return;
-        if (ball.position.z > -0.1f) return; // not on the AI's half yet
+        if (ball.position.z > netZ - 0.1f) return; // not on the AI's half yet
 
         Vector3 toBall = ball.position - transform.position;
         if (new Vector2(toBall.x, toBall.z).magnitude > strikeRange) return;
@@ -150,7 +149,7 @@ public class AIOpponent : MonoBehaviour
         Vector3 target = new Vector3(
             Random.Range(-halfWidth * 0.55f, halfWidth * 0.55f),
             0f,
-            Random.Range(halfDepth * 0.3f, halfDepth * 0.75f));
+            netZ + Random.Range(halfDepth * 0.3f, halfDepth * 0.75f));
 
         float flightTime = shotFlightTime * Random.Range(0.85f, 1.15f);
         Vector3 velocity = (target - ball.position) / flightTime
@@ -240,7 +239,7 @@ public class AIOpponent : MonoBehaviour
     private void MoveTowards(Vector3 target)
     {
         target.x = Mathf.Clamp(target.x, -halfWidth, halfWidth);
-        target.z = Mathf.Clamp(target.z, -(halfDepth - 0.4f), -0.6f);
+        target.z = Mathf.Clamp(target.z, netZ - halfDepth + 0.4f, netZ - 0.6f);
         target.y = baselineY;
         transform.position = Vector3.MoveTowards(
             transform.position, target, maxMoveSpeed * Time.deltaTime);
