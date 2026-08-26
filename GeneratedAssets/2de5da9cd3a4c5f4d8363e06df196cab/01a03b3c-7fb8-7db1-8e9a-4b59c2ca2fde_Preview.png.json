@@ -1,0 +1,12 @@
+{
+    "asset": "2de5da9cd3a4c5f4d8363e06df196cab",
+    "fileName": "01a03b3c-7fb8-7db1-8e9a-4b59c2ca2fde_Preview.png",
+    "prompt": "Dark glossy black sphere material for a sci-fi energy ball, like a futuristic sports ball. Bright glowing cyan-blue neon circuit lines forming a ring around the equator and radial spoke lines, dramatic emissive glow against the near-black glossy base, high contrast, clean minimal tech pattern (not overly busy), seamless tileable PBR material.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash-texture",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": 1298946696,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}

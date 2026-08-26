@@ -1,0 +1,31 @@
+{
+    "asset": "0f4e70933423c3846911dfe4d313373a",
+    "fileName": "01a03b8c-ae5b-779a-9a4f-edf54980a634.png",
+    "prompt": "Full-body futuristic humanoid robot character, Echo VR / Lone Echo inspired design adapted to stand on two legs (not floating). Sleek athletic build, smooth dark gunmetal-gray armored plating, glowing red-orange circuit-line accents along the seams, rounded reflective visor-style head with no visible face, articulated segmented limbs. Standing upright in a neutral A-pose, arms slightly away from the body, facing forward. Isolated on a plain flat white background, studio product render, 3D game asset concept turnaround, clean silhouette.",
+    "negativePrompt": "",
+    "model": "stylized-3d",
+    "modelName": "Stylized 3D",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "asset": "9827a055cd9f4744b9873dcd37b04528",
+    "fileName": "01a03b3d-379d-78c9-b28e-e7dfccb87eb0_Preview.png",
+    "prompt": "Glossy off-white and cream ceramic-plastic humanoid robot shell material, like the sleek NS-5 androids from the movie I, Robot or an Echo VR player avatar. Smooth polished panel seams with thin glowing cyan-blue accent lines tracing the joints, subtle mechanical detailing, seamless tileable PBR material, clean and futuristic.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash-texture",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": 1270658055,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}

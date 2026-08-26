@@ -1,0 +1,12 @@
+{
+    "asset": "1ab738d7d235c1c48a8de97b8c5311d7",
+    "fileName": "01a03b3b-caf1-7f64-b8fd-9689d374c16b_Preview.png",
+    "prompt": "Dark charcoal and near-black sci-fi floor panel material for a futuristic esports arena like Echo VR / Lone Echo. Subtle thin glowing cyan-blue circuit lines along panel seams, more subdued and less busy than a wall panel, meant to be walked on. Seamless tileable PBR material, semi-glossy finish, subtle reflections.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash-texture",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": 1493188956,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}

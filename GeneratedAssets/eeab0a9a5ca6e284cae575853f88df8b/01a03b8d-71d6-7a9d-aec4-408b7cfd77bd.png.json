@@ -1,0 +1,31 @@
+{
+    "asset": "eeab0a9a5ca6e284cae575853f88df8b",
+    "fileName": "01a03b8d-71d6-7a9d-aec4-408b7cfd77bd.png",
+    "prompt": "A single futuristic robotic hand and forearm gauntlet, Echo VR / Lone Echo inspired design. Smooth glossy white and silver armored plating, glowing cyan-blue circuit-line accents along the seams and knuckles, articulated segmented fingers in a relaxed slightly-open pose. Isolated on a plain flat white background, studio product render, 3D game asset concept, clean silhouette, viewed from a three-quarter angle showing the back of the hand.",
+    "negativePrompt": "",
+    "model": "stylized-3d",
+    "modelName": "Stylized 3D",
+    "customSeed": -1,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation",
+    "pixelateTargetSize": 0,
+    "pixelateKeepImageSize": false,
+    "pixelatePixelBlockSize": 0,
+    "pixelatePixelGridSize": 0,
+    "pixelateMode": 0,
+    "pixelateOutlineThickness": 0,
+    "doodles": {
+        "m_Items": []
+    },
+    "upscaleFactor": 0,
+    "dimensions": {
+        "width": 1024,
+        "height": 1024
+    },
+    "spriteSheet": false,
+    "duration": 0.0,
+    "dynamicParams": {
+        "serializedData": []
+    }
+}

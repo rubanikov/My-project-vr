@@ -1,0 +1,12 @@
+{
+    "asset": "36eca442a220ea64196e43726ed7317c",
+    "fileName": "01a03b39-ce4a-7b03-b373-c9ef8b57ea58_Preview.png",
+    "prompt": "Dark matte black and charcoal sci-fi metal wall panel material, futuristic esports arena aesthetic like Echo VR / Lone Echo. Thin glowing cyan-blue emissive circuit lines tracing the panel seams and edges, geometric tech grid details, high contrast between the near-black base and the bright glowing lines. Seamless tileable PBR material, glossy clear-coat finish.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash-texture",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": 851243825,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}

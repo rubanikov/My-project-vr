@@ -1,0 +1,12 @@
+{
+    "asset": "958630877a213e54294048b925bb5762",
+    "fileName": "01a03b5a-ed32-75c1-ac51-66f6b9e731e6_Preview.png",
+    "prompt": "Smooth glossy dark gunmetal-gray and black polished robot plating material, like a sleek antagonist android (I, Robot style but darker, opposing-team color). Clean seamless panel plates, NOT cracked or weathered, no eggshell texture. A few bold, clearly visible glowing red-orange accent lines tracing panel seams — simple and high-contrast rather than busy or intricate, designed to read clearly even on small rounded surfaces. Seamless tileable PBR material, futuristic and slightly menacing.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash-texture",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": 1827968690,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}

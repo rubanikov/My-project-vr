@@ -1,0 +1,12 @@
+{
+    "asset": "becfd65da67fa2f428c8460e19fdaf21",
+    "fileName": "01a03b5a-75bb-7f80-84f4-1e2f2f1ba861_Preview.png",
+    "prompt": "Smooth glossy white and silver polished robot plating material, like the sleek NS-5 androids from the movie I, Robot. Clean seamless panel plates, NOT cracked or weathered, no eggshell texture. A few bold, clearly visible glowing cyan-blue accent lines tracing panel seams — simple and high-contrast rather than busy or intricate, designed to read clearly even on small rounded surfaces. Seamless tileable PBR material, bright and futuristic.",
+    "negativePrompt": "",
+    "model": "gemini-3.1-flash-texture",
+    "modelName": "Gemini 3.1 Nano Banana 2",
+    "customSeed": 1386506773,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}
