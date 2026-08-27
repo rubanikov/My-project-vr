@@ -78,7 +78,7 @@ The AI's racket swing — presentation only; the contact moment applies the comp
 The AI's movement away from the ball's path when it is not the AI's Turn, driven by the Body Hit rule.
 
 **Difficulty**:
-The Easy / Normal / Hard preset shaping the AI — movement speed, reaction delay, reach, shot pace, and whiff chance. Chosen only in the Game Menu as a visible setting (2026-08-27 — supersedes the in-game A-button cycle), persists between sessions, and takes effect on the AI's next turn.
+The Easy / Normal / Hard preset shaping the AI — movement speed, reaction delay, reach, shot pace, whiff chance, and shot placement (higher difficulties aim toward the corner away from where the player stands; Easy aims randomly and Hard never whiffs). Chosen only in the Game Menu as a visible setting (2026-08-27 — supersedes the in-game A-button cycle), persists between sessions, and takes effect on the AI's next turn.
 
 ### Presentation
 

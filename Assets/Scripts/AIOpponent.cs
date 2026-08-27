@@ -80,6 +80,7 @@ public class AIOpponent : MonoBehaviour
     private float strikeRange;
     private float shotFlightTime;
     private float missChance;
+    private float placementSharpness; // 0 = random target, 1 = always the corner away from the player
 
     // Court geometry from CourtBuilder (the net sits at the front edge of
     // the player's Guardian area, so netZ is negative, not zero).
@@ -148,6 +149,11 @@ public class AIOpponent : MonoBehaviour
         if (courtBuilder != null) courtBuilder.CourtBuilt -= OnCourtBuilt;
     }
 
+    // Rebalanced 2026-08-27 ("the one that is hard is not hard anymore"):
+    // the padel rule fixes made points resolve honestly (skim watchdog) and
+    // the swing-sync briefly added strike latency, so the whole ladder
+    // shifted easy. Normal firms up, Hard stops whiffing entirely, moves and
+    // reacts near-instantly, and aims away from the player.
     private void ApplyDifficulty()
     {
         switch (difficulty)
@@ -159,22 +165,25 @@ public class AIOpponent : MonoBehaviour
                 strikeRange = 0.5f;
                 shotFlightTime = 1.25f;
                 missChance = 0.25f;
+                placementSharpness = 0f;
                 break;
             case AIDifficulty.Normal:
-                maxMoveSpeed = 2.5f;
-                baseReactionDelaySeconds = 0.2f;
-                maxReactionDelaySeconds = 0.6f;
-                strikeRange = 0.6f;
-                shotFlightTime = 1f;
-                missChance = 0.1f;
+                maxMoveSpeed = 2.8f;
+                baseReactionDelaySeconds = 0.15f;
+                maxReactionDelaySeconds = 0.5f;
+                strikeRange = 0.65f;
+                shotFlightTime = 0.9f;
+                missChance = 0.08f;
+                placementSharpness = 0.35f;
                 break;
             case AIDifficulty.Hard:
-                maxMoveSpeed = 3.4f;
-                baseReactionDelaySeconds = 0.1f;
-                maxReactionDelaySeconds = 0.35f;
-                strikeRange = 0.7f;
-                shotFlightTime = 0.8f;
-                missChance = 0.02f;
+                maxMoveSpeed = 4.2f;
+                baseReactionDelaySeconds = 0.05f;
+                maxReactionDelaySeconds = 0.2f;
+                strikeRange = 0.85f;
+                shotFlightTime = 0.65f;
+                missChance = 0f;
+                placementSharpness = 0.8f;
                 break;
         }
     }
@@ -249,6 +258,14 @@ public class AIOpponent : MonoBehaviour
         if (!shotPending) return;
         float progress = swingTimer > 0f ? 1f - swingTimer / SwingDuration : 1f;
         if (progress < ShotContactProgress) return;
+
+        // The sweep is through — hit only if the ball actually arrived. A
+        // ball that stalled short keeps the strike armed until it drifts
+        // into reach; the turn ending cancels a strike that never lands.
+        Vector3 toBall = ball.position - transform.position;
+        float horizontal = new Vector2(toBall.x, toBall.z).magnitude;
+        if (horizontal > strikeRange * 1.6f) return;
+
         shotPending = false;
         PlayShot();
     }
@@ -288,23 +305,46 @@ public class AIOpponent : MonoBehaviour
 
         Vector3 toBall = ball.position - transform.position;
         float horizontal = new Vector2(toBall.x, toBall.z).magnitude;
-        float ballSpeed = ball.linearVelocity.magnitude;
+        float swingDir = Vector3.Dot(toBall, transform.right) >= 0f ? 1f : -1f;
 
-        // Wind-up: start the swing while the ball is still on its way in, so
-        // contact happens mid-swing instead of before any visible motion.
-        if (horizontal < strikeRange + ballSpeed * 0.3f && ball.position.y < reachHeight + 0.5f)
+        // A whiff turn swings through the air near the ball and never arms
+        // the shot — the AI stands slightly off-line, a believable miss.
+        if (currentMissOffset != 0f)
         {
-            BeginSwing(Vector3.Dot(toBall, transform.right) >= 0f ? 1f : -1f);
+            if (horizontal < strikeRange + ball.linearVelocity.magnitude * 0.3f
+                && ball.position.y < reachHeight + 0.5f)
+            {
+                BeginSwing(swingDir);
+            }
+            return;
         }
 
-        bool canReach = horizontal <= strikeRange && ball.position.y <= reachHeight;
-        if (canReach && currentMissOffset == 0f && !shotPending)
+        if (shotPending) return;
+        if (ball.position.y > reachHeight) return;
+
+        // Predictive arming: start the swing one sweep-through EARLY, so the
+        // racket meets the arriving ball instead of trailing it. (Arming only
+        // once the ball was already in reach added ~0.25s of strike latency —
+        // the post-swing-sync difficulty drop, 2026-08-27 playtest.)
+        bool arm = horizontal <= strikeRange;
+        if (!arm)
         {
-            BeginSwing(Vector3.Dot(toBall, transform.right) >= 0f ? 1f : -1f);
+            Vector3 toSelf = -toBall;
+            toSelf.y = 0f;
+            Vector3 v = ball.linearVelocity;
+            v.y = 0f;
+            float closingSpeed = Vector3.Dot(v, toSelf.normalized);
+            if (closingSpeed > 0.1f)
+            {
+                float timeToReach = (horizontal - strikeRange) / closingSpeed;
+                arm = timeToReach <= SwingDuration * ShotContactProgress;
+            }
+        }
+        if (arm)
+        {
+            BeginSwing(swingDir);
             shotPending = true; // released by FirePendingShot at the sweep-through
         }
-        // With a whiff offset active the AI stands slightly off-line and the
-        // started swing simply cuts through air — a believable miss.
     }
 
     // The computed shot: a ballistic arc to a random floor target on the
@@ -312,8 +352,19 @@ public class AIOpponent : MonoBehaviour
     // lobs that clear the net without inverse-physics aiming.
     private void PlayShot()
     {
+        // Placement: random by default; higher difficulties pull the target
+        // toward the corner away from where the player is standing, so the
+        // player has to actually cover ground.
+        float lateral = Random.Range(-halfWidth * 0.55f, halfWidth * 0.55f);
+        Transform head = Camera.main != null ? Camera.main.transform : null;
+        if (head != null && placementSharpness > 0f)
+        {
+            float awaySide = head.position.x >= centerX ? -1f : 1f;
+            lateral = Mathf.Lerp(lateral, awaySide * halfWidth * 0.55f, placementSharpness);
+        }
+
         Vector3 target = new Vector3(
-            centerX + Random.Range(-halfWidth * 0.55f, halfWidth * 0.55f),
+            centerX + lateral,
             0f,
             netZ + Random.Range(halfDepth * 0.3f, halfDepth * 0.75f));
 
