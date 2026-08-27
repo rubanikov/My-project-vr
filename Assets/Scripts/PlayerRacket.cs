@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 using Meta.XR.ImmersiveDebugger;
 
@@ -34,7 +35,17 @@ public class PlayerRacket : MonoBehaviour
     [SerializeField] private float faceRestitution = 0.7f;
     [SerializeField] private float maxBallSpeed = 15f;
 
+    [Header("Hit feedback")]
+    [Tooltip("The ball's sound player; the Hit sound reuses the haptic intensity curve. Auto-found from the ball when empty.")]
+    [SerializeField] private BallContactSounds ballSounds;
+    [Tooltip("Haptic amplitude of the gentlest contact (a graze).")]
+    [SerializeField] private float hapticFloor = 0.3f;
+    [Tooltip("Closing speed (m/s) at which the haptic pulse saturates at full amplitude.")]
+    [SerializeField] private float hapticSaturationSpeed = 8f;
+    [SerializeField] private float hapticPulseSeconds = 0.03f;
+
     private Rigidbody rb;
+    private Coroutine hapticStopCoroutine;
 
     // The Grip: the racket's pose relative to the hand that owns it. During a
     // Regrip the racket temporarily follows the left hand instead; the stored
@@ -88,6 +99,11 @@ public class PlayerRacket : MonoBehaviour
         // of fast, precise contact this component depends on.
         Time.fixedDeltaTime = 1f / 90f;
 
+        if (ballSounds == null && ball != null)
+        {
+            ballSounds = ball.GetComponent<BallContactSounds>();
+        }
+
         LoadGrip();
         RestoreOwnGrip();
     }
@@ -129,12 +145,22 @@ public class PlayerRacket : MonoBehaviour
         if (Time.time - lastHitTime < HitCooldown) return;
         lastHitTime = Time.time;
 
-        ApplyHit(collision);
+        // One normalized intensity (closing speed over the saturation speed)
+        // drives both the haptic pulse and the Hit sound, so hand and ear
+        // always report the same contact. A graze comes back as 0 and still
+        // feeds through — contact you can see should be contact you can feel.
+        float closingSpeed = ApplyHit(collision);
+        float intensity = Mathf.Clamp01(closingSpeed / hapticSaturationSpeed);
+        PulseHaptics(intensity);
+        ballSounds?.PlayRacketHit(intensity);
+
         ballFaultTracker?.NotifyTouched(Side.Player);
         matchController?.OnBallInPlay();
     }
 
-    private void ApplyHit(Collision collision)
+    // Returns the closing speed of ball and face (m/s), 0 for a graze that
+    // was already separating and left untouched.
+    private float ApplyHit(Collision collision)
     {
         ContactPoint contact = collision.GetContact(0);
 
@@ -151,12 +177,37 @@ public class PlayerRacket : MonoBehaviour
         float approach = Vector3.Dot(relativeVelocity, normal);
 
         // Separating already (e.g. a graze PhysX resolved fine) — leave it alone.
-        if (approach >= 0f) return;
+        if (approach >= 0f) return 0f;
 
         Vector3 reflected = relativeVelocity - (1f + faceRestitution) * approach * normal;
         Vector3 outgoing = racketVelocity * hitPower + reflected;
 
         ball.linearVelocity = Vector3.ClampMagnitude(outgoing, maxBallSpeed);
+        return -approach;
+    }
+
+    // One pulse per Hit: fixed length, full frequency, amplitude carrying the
+    // expressiveness (floor to 1 over the closing speed). The buzz goes to
+    // whichever hand holds the racket — right normally, left mid-Regrip.
+    private void PulseHaptics(float intensity01)
+    {
+        OVRInput.Controller hand = followAnchor == controllerAnchor
+            ? OVRInput.Controller.RTouch
+            : OVRInput.Controller.LTouch;
+
+        OVRInput.SetControllerVibration(1f, Mathf.Lerp(hapticFloor, 1f, intensity01), hand);
+
+        if (hapticStopCoroutine != null) StopCoroutine(hapticStopCoroutine);
+        hapticStopCoroutine = StartCoroutine(StopHaptics(hand));
+    }
+
+    private IEnumerator StopHaptics(OVRInput.Controller hand)
+    {
+        // Realtime so a pause mid-pulse can't pin the motor on until the
+        // runtime's 2-second safety timeout.
+        yield return new WaitForSecondsRealtime(hapticPulseSeconds);
+        OVRInput.SetControllerVibration(1f, 0f, hand);
+        hapticStopCoroutine = null;
     }
 
     // --- Grip management (used by RacketRegrip) ---
@@ -250,5 +301,26 @@ public class PlayerRacket : MonoBehaviour
     {
         get => maxBallSpeed;
         set => maxBallSpeed = value;
+    }
+
+    [DebugMember(Category = "Racket", Tweakable = true, Min = 0f, Max = 1f, DisplayName = "Haptic Floor")]
+    public float HapticFloor
+    {
+        get => hapticFloor;
+        set => hapticFloor = value;
+    }
+
+    [DebugMember(Category = "Racket", Tweakable = true, Min = 2f, Max = 20f, DisplayName = "Haptic Saturation Speed")]
+    public float HapticSaturationSpeed
+    {
+        get => hapticSaturationSpeed;
+        set => hapticSaturationSpeed = value;
+    }
+
+    [DebugMember(Category = "Racket", Tweakable = true, Min = 0.01f, Max = 0.1f, DisplayName = "Haptic Pulse Seconds")]
+    public float HapticPulseSeconds
+    {
+        get => hapticPulseSeconds;
+        set => hapticPulseSeconds = value;
     }
 }

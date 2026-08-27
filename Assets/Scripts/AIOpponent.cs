@@ -93,10 +93,13 @@ public class AIOpponent : MonoBehaviour
     private const float SwingDuration = 0.45f;
     private Quaternion racketRestRotation;
 
+    private BallContactSounds ballSounds;
+
     private void Awake()
     {
         homePosition = new Vector3(0f, baselineY, -1.6f);
         if (racketVisual != null) racketRestRotation = racketVisual.localRotation;
+        if (ball != null) ballSounds = ball.GetComponent<BallContactSounds>();
 
         difficulty = (AIDifficulty)PlayerPrefs.GetInt(DifficultyPrefKey, (int)AIDifficulty.Easy);
         ApplyDifficulty();
@@ -279,6 +282,11 @@ public class AIOpponent : MonoBehaviour
         lastShotTime = Time.time;
         BeginSwing(swingDirection);
         interceptX = null;
+
+        // The AI's Hit is computed, not collided — voice it explicitly,
+        // scaled the way the player's hits scale. Serves come through here
+        // too (ServeRoutine ends in PlayShot).
+        ballSounds?.PlayRacketHit(velocity.magnitude / maxShotSpeed);
 
         ballFaultTracker?.NotifyTouched(Side.AI);
     }

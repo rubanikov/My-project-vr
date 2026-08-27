@@ -58,11 +58,57 @@ public static class BallSetup
             Undo.AddComponent<BallFaultTracker>(ball);
         }
 
+        // Contact sounds: one spatialized AudioSource on the ball voices Hits,
+        // Bounces, and ricochets (see BallContactSounds). The source's 3D
+        // settings are configured by the component itself at runtime; here we
+        // only add the pieces and assign the clips.
+        if (ball.GetComponent<AudioSource>() == null)
+        {
+            AudioSource source = Undo.AddComponent<AudioSource>(ball);
+            source.playOnAwake = false;
+        }
+        BallContactSounds sounds = ball.GetComponent<BallContactSounds>();
+        if (sounds == null)
+        {
+            sounds = Undo.AddComponent<BallContactSounds>(ball);
+        }
+        AssignContactClips(sounds);
+
         Selection.activeGameObject = ball;
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
 
-        Debug.Log("Court Clash: Ball is set up with bouncy physics and BallFaultTracker. " +
-            "Grab interaction is not wired yet.");
+        Debug.Log("Court Clash: Ball is set up with bouncy physics, BallFaultTracker, " +
+            "and contact sounds. Grab interaction is not wired yet.");
+    }
+
+    private static void AssignContactClips(BallContactSounds sounds)
+    {
+        var serialized = new SerializedObject(sounds);
+        AssignClip(serialized, "racketHitClip", "RacketHit");
+        AssignClip(serialized, "surfaceBounceClip", "CourtBounce");
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void AssignClip(SerializedObject serialized, string property, string clipName)
+    {
+        AudioClip clip = LoadClip(clipName);
+        if (clip == null)
+        {
+            Debug.LogWarning($"Court Clash: no {clipName}.wav/.ogg under Assets/Audio — that " +
+                "contact stays silent until the clip exists and Setup Ball In Scene reruns.");
+            return;
+        }
+        serialized.FindProperty(property).objectReferenceValue = clip;
+    }
+
+    private static AudioClip LoadClip(string name)
+    {
+        foreach (string extension in new[] { "wav", "ogg" })
+        {
+            var clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"Assets/Audio/{name}.{extension}");
+            if (clip != null) return clip;
+        }
+        return null;
     }
 
     private static PhysicsMaterial GetOrCreateBounceMaterial()
