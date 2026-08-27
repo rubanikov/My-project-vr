@@ -150,6 +150,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Scoreboard
   matchController: {fileID: 618482616}
   courtBuilder: {fileID: 493433660}
+  aiOpponent: {fileID: 948571792}
   panelMaterial: {fileID: 2100000, guid: adce5e74c324320489875d269919032c, type: 2}
   heightOnWall: 2
   panelSize: {x: 2.2, y: 0.9}
@@ -1301,14 +1302,12 @@ MonoBehaviour:
   ballFaultTracker: {fileID: 2064836823}
   courtBuilder: {fileID: 493433660}
   racketVisual: {fileID: 1335446574}
+  difficulty: 0
   baselineY: 1
-  strikeRange: 0.6
-  maxMoveSpeed: 3
+  reachHeight: 2.2
   dodgeRadius: 0.7
-  baseReactionDelaySeconds: 0.175
+  turnDegreesPerSecond: 300
   extraDelayPerDegree: 0.004
-  maxReactionDelaySeconds: 0.6
-  shotFlightTime: 0.9
   maxShotSpeed: 12
   serveWindupSeconds: 1
   minBodyHitBallSpeed: 1

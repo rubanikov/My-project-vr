@@ -13,6 +13,7 @@ public class Scoreboard : MonoBehaviour
     [Header("References")]
     [SerializeField] private MatchController matchController;
     [SerializeField] private CourtBuilder courtBuilder;
+    [SerializeField] private AIOpponent aiOpponent;
     [Tooltip("Transparent dark material for the backing panel (must be an asset so its shader variant ships in builds).")]
     [SerializeField] private Material panelMaterial;
 
@@ -22,6 +23,8 @@ public class Scoreboard : MonoBehaviour
 
     private TextMesh scoreText;
     private TextMesh statusText;
+    private string persistentStatus = "";
+    private Coroutine temporaryStatusCoroutine;
 
     private void OnEnable()
     {
@@ -33,6 +36,7 @@ public class Scoreboard : MonoBehaviour
             matchController.ServeChanged += OnServeChanged;
             matchController.MatchEnded += OnMatchEnded;
         }
+        if (aiOpponent != null) aiOpponent.DifficultyChanged += OnDifficultyChanged;
     }
 
     private void OnDisable()
@@ -45,6 +49,7 @@ public class Scoreboard : MonoBehaviour
             matchController.ServeChanged -= OnServeChanged;
             matchController.MatchEnded -= OnMatchEnded;
         }
+        if (aiOpponent != null) aiOpponent.DifficultyChanged -= OnDifficultyChanged;
     }
 
     private void OnCourtBuilt(Vector3 halfExtents)
@@ -99,7 +104,24 @@ public class Scoreboard : MonoBehaviour
     private void ShowIdleState()
     {
         SetScore(0, 0);
-        SetStatus("HIT THE BALL TO START — YOUR SERVE");
+        SetStatus("HIT THE BALL TO START — YOUR SERVE   (A = DIFFICULTY)");
+    }
+
+    // Difficulty flashes on the status line for a moment, then the serve
+    // info comes back.
+    private void OnDifficultyChanged(AIDifficulty difficulty)
+    {
+        if (temporaryStatusCoroutine != null) StopCoroutine(temporaryStatusCoroutine);
+        temporaryStatusCoroutine = StartCoroutine(ShowTemporaryStatus(
+            $"DIFFICULTY: {difficulty.ToString().ToUpper()}"));
+    }
+
+    private System.Collections.IEnumerator ShowTemporaryStatus(string message)
+    {
+        if (statusText != null) statusText.text = message;
+        yield return new WaitForSeconds(2f);
+        if (statusText != null) statusText.text = persistentStatus;
+        temporaryStatusCoroutine = null;
     }
 
     private void OnMatchStarted()
@@ -130,6 +152,12 @@ public class Scoreboard : MonoBehaviour
 
     private void SetStatus(string message)
     {
+        persistentStatus = message;
+        if (temporaryStatusCoroutine != null)
+        {
+            StopCoroutine(temporaryStatusCoroutine);
+            temporaryStatusCoroutine = null;
+        }
         if (statusText != null) statusText.text = message;
     }
 }

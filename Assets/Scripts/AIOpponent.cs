@@ -1,20 +1,35 @@
 using System.Collections;
 using UnityEngine;
 
+public enum AIDifficulty
+{
+    Easy,
+    Normal,
+    Hard,
+}
+
 // Court Clash's AI padel opponent, v2 (2026-08-26 padel conversion — see
-// CONTEXT.md for Turn/Dodge/Body Hit/Serve vocabulary; supersedes the v1
-// catch-and-throw opponent from wayfinder ticket 03):
-//   - Roams its own half in 2D (X and Z) with a capped speed and the same
-//     bounce-scaled reaction delay that made v1 beatable.
-//   - Carries a Tron racket and swings it on its Turn; the swing is
-//     presentation — the shot itself is computed (a ballistic arc to a
-//     random target on the player's half), which keeps aiming reliable and
-//     difficulty tunable.
-//   - Dodges the ball when it is NOT its turn: any ball-body contact is a
-//     point to the player (the trigger capsule on this GameObject is the
-//     Body Hit sensor).
-//   - Serves when MatchController says so: floats the ball at its racket,
-//     winds up, then plays a computed serve shot.
+// CONTEXT.md for Turn/Dodge/Body Hit/Serve vocabulary):
+//   - Roams its own half in 2D with a capped speed and a bounce-scaled
+//     reaction delay; its half spans [netZ - halfDepth, netZ].
+//   - Carries a Tron racket; the swing is presentation, the shot is computed
+//     (a ballistic arc to a random target on the player's half).
+//   - Dodges the ball when it is NOT its turn (Body Hit = point to player).
+//   - Serves when MatchController says so.
+//
+// Readability pass (2026-08-26, after the user's playtest "the AI does not
+// show animations... it hits without moving the hands"): the body now turns
+// to face the ball, the swing STARTS while the ball is still approaching
+// (wind-up, so contact lands mid-swing instead of the ball leaving before
+// any motion), the racket sweeps horizontally on the ball's side, and balls
+// above reach height simply fly over its head.
+//
+// Difficulty (same playtest: "make it a bit easier, or add difficulty
+// options"): Easy/Normal/Hard presets over speed, reaction, reach, shot
+// pace, and a per-turn whiff chance (the AI deliberately lines up slightly
+// off and swings through the miss — a believable whiff, not a freeze).
+// Cycled with the right controller's A button, persisted to PlayerPrefs,
+// announced on the Scoreboard. Defaults to Easy.
 public class AIOpponent : MonoBehaviour
 {
     [Header("References")]
@@ -24,52 +39,66 @@ public class AIOpponent : MonoBehaviour
     [SerializeField] private CourtBuilder courtBuilder;
     [SerializeField] private Transform racketVisual;
 
-    [Header("Positioning (rescaled to the real court by OnCourtBuilt)")]
+    [Header("Difficulty")]
+    [SerializeField] private AIDifficulty difficulty = AIDifficulty.Easy;
+
+    [Header("Positioning")]
     [SerializeField] private float baselineY = 1f;
-    [Tooltip("Horizontal reach for a swing. Deliberately larger than the body capsule so the " +
-        "racket connects before the ball can reach the Body Hit sensor.")]
-    [SerializeField] private float strikeRange = 0.6f;
+    [Tooltip("Balls above this height fly over the AI's head — it cannot reach them.")]
+    [SerializeField] private float reachHeight = 2.2f;
 
     [Header("Movement")]
-    [SerializeField] private float maxMoveSpeed = 2.5f;
     [SerializeField] private float dodgeRadius = 0.7f;
+    [SerializeField] private float turnDegreesPerSecond = 300f;
 
-    [Header("Reaction delay (stacks with the movement cap, doesn't replace it)")]
-    [SerializeField] private float baseReactionDelaySeconds = 0.175f;
+    [Header("Reaction delay shape (base/max come from the difficulty preset)")]
     [SerializeField] private float extraDelayPerDegree = 0.004f; // ~0.36s at a 90-degree carom
-    [SerializeField] private float maxReactionDelaySeconds = 0.6f;
 
     [Header("Shot")]
-    [SerializeField] private float shotFlightTime = 0.9f;
     [SerializeField] private float maxShotSpeed = 12f;
     [SerializeField] private float serveWindupSeconds = 1f;
     [Tooltip("A slower ball can't score a Body Hit — a dead ball rolling into the AI is not a point.")]
     [SerializeField] private float minBodyHitBallSpeed = 1f;
 
-    // Court geometry, taken from CourtBuilder once the real size is known
-    // (the AI once failed to show up on-device because its authored position
-    // sat outside a smaller room). The AI's half spans [netZ - halfDepth,
-    // netZ] — the net sits at the front edge of the player's Guardian area,
-    // so netZ is negative, not zero.
+    public event System.Action<AIDifficulty> DifficultyChanged;
+    public AIDifficulty Difficulty => difficulty;
+
+    private const string DifficultyPrefKey = "CourtClash.AIDifficulty";
+
+    // Set by ApplyDifficulty.
+    private float maxMoveSpeed;
+    private float baseReactionDelaySeconds;
+    private float maxReactionDelaySeconds;
+    private float strikeRange;
+    private float shotFlightTime;
+    private float missChance;
+
+    // Court geometry from CourtBuilder (the net sits at the front edge of
+    // the player's Guardian area, so netZ is negative, not zero).
     private float halfWidth = 2.2f;
     private float halfDepth = 2.5f;
     private float netZ;
     private Vector3 homePosition;
 
     private float? interceptX;
+    private float currentMissOffset; // lateral whiff offset for this turn (0 = clean)
     private Coroutine reactCoroutine;
     private Side? previousLastTouch;
     private bool serving;
     private float lastShotTime = float.NegativeInfinity;
 
     private float swingTimer;
-    private const float SwingDuration = 0.3f;
+    private float swingDirection = 1f;
+    private const float SwingDuration = 0.4f;
     private Quaternion racketRestRotation;
 
     private void Awake()
     {
         homePosition = new Vector3(0f, baselineY, -1.6f);
         if (racketVisual != null) racketRestRotation = racketVisual.localRotation;
+
+        difficulty = (AIDifficulty)PlayerPrefs.GetInt(DifficultyPrefKey, (int)AIDifficulty.Easy);
+        ApplyDifficulty();
     }
 
     private void OnEnable()
@@ -82,6 +111,46 @@ public class AIOpponent : MonoBehaviour
     {
         if (ballBounceEvents != null) ballBounceEvents.Bounced -= OnBallBounced;
         if (courtBuilder != null) courtBuilder.CourtBuilt -= OnCourtBuilt;
+    }
+
+    private void ApplyDifficulty()
+    {
+        switch (difficulty)
+        {
+            case AIDifficulty.Easy:
+                maxMoveSpeed = 1.6f;
+                baseReactionDelaySeconds = 0.35f;
+                maxReactionDelaySeconds = 0.9f;
+                strikeRange = 0.5f;
+                shotFlightTime = 1.25f;
+                missChance = 0.25f;
+                break;
+            case AIDifficulty.Normal:
+                maxMoveSpeed = 2.5f;
+                baseReactionDelaySeconds = 0.2f;
+                maxReactionDelaySeconds = 0.6f;
+                strikeRange = 0.6f;
+                shotFlightTime = 1f;
+                missChance = 0.1f;
+                break;
+            case AIDifficulty.Hard:
+                maxMoveSpeed = 3.4f;
+                baseReactionDelaySeconds = 0.1f;
+                maxReactionDelaySeconds = 0.35f;
+                strikeRange = 0.7f;
+                shotFlightTime = 0.8f;
+                missChance = 0.02f;
+                break;
+        }
+    }
+
+    public void CycleDifficulty()
+    {
+        difficulty = (AIDifficulty)(((int)difficulty + 1) % 3);
+        ApplyDifficulty();
+        PlayerPrefs.SetInt(DifficultyPrefKey, (int)difficulty);
+        PlayerPrefs.Save();
+        DifficultyChanged?.Invoke(difficulty);
     }
 
     private void OnCourtBuilt(Vector3 halfExtents)
@@ -99,35 +168,69 @@ public class AIOpponent : MonoBehaviour
 
     private void Update()
     {
+        if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
+        {
+            CycleDifficulty();
+        }
+
         UpdateSwingAnimation();
         if (ball == null || serving) return;
 
-        // The player just hit — schedule a re-prediction after the base
-        // reaction delay (bounces add their own, angle-scaled, below).
+        // The player just hit — roll this turn's whiff and schedule a
+        // re-prediction after the base reaction delay (bounces add their own,
+        // angle-scaled, below).
         Side? lastTouch = ballFaultTracker != null ? ballFaultTracker.LastTouch : null;
         if (lastTouch != previousLastTouch)
         {
             previousLastTouch = lastTouch;
-            if (lastTouch == Side.Player) ScheduleReaction(baseReactionDelaySeconds);
+            if (lastTouch == Side.Player)
+            {
+                currentMissOffset = Random.value < missChance
+                    ? (Random.value < 0.5f ? -1f : 1f) * Random.Range(0.5f, 0.8f)
+                    : 0f;
+                ScheduleReaction(baseReactionDelaySeconds);
+            }
         }
 
         if (MyTurn)
         {
             MoveToIntercept();
+            FaceBall();
             TryStrike();
         }
         else
         {
             DodgeOrGoHome();
+            FacePlayerSide();
         }
     }
 
     private void MoveToIntercept()
     {
         Vector3 target = interceptX.HasValue
-            ? new Vector3(interceptX.Value, baselineY, homePosition.z)
+            ? new Vector3(interceptX.Value + currentMissOffset, baselineY, homePosition.z)
             : homePosition;
         MoveTowards(target);
+    }
+
+    // The whole body turns toward the ball while playing it — the biggest
+    // single readability win for an unrigged robot mesh.
+    private void FaceBall()
+    {
+        TurnTowards(ball.position - transform.position);
+    }
+
+    private void FacePlayerSide()
+    {
+        TurnTowards(Vector3.forward);
+    }
+
+    private void TurnTowards(Vector3 direction)
+    {
+        direction.y = 0f;
+        if (direction.sqrMagnitude < 0.01f) return;
+        transform.rotation = Quaternion.RotateTowards(
+            transform.rotation, Quaternion.LookRotation(direction), turnDegreesPerSecond * Time.deltaTime);
     }
 
     private void TryStrike()
@@ -136,9 +239,23 @@ public class AIOpponent : MonoBehaviour
         if (ball.position.z > netZ - 0.1f) return; // not on the AI's half yet
 
         Vector3 toBall = ball.position - transform.position;
-        if (new Vector2(toBall.x, toBall.z).magnitude > strikeRange) return;
+        float horizontal = new Vector2(toBall.x, toBall.z).magnitude;
+        float ballSpeed = ball.linearVelocity.magnitude;
 
-        PlayShot();
+        // Wind-up: start the swing while the ball is still on its way in, so
+        // contact happens mid-swing instead of before any visible motion.
+        if (horizontal < strikeRange + ballSpeed * 0.3f && ball.position.y < reachHeight + 0.5f)
+        {
+            BeginSwing(Vector3.Dot(toBall, transform.right) >= 0f ? 1f : -1f);
+        }
+
+        bool canReach = horizontal <= strikeRange && ball.position.y <= reachHeight;
+        if (canReach && currentMissOffset == 0f)
+        {
+            PlayShot();
+        }
+        // With a whiff offset active the AI stands slightly off-line and the
+        // started swing simply cuts through air — a believable miss.
     }
 
     // The computed shot: a ballistic arc to a random floor target on the
@@ -158,7 +275,7 @@ public class AIOpponent : MonoBehaviour
 
         ball.linearVelocity = velocity;
         lastShotTime = Time.time;
-        swingTimer = SwingDuration;
+        BeginSwing(swingDirection);
         interceptX = null;
 
         ballFaultTracker?.NotifyTouched(Side.AI);
@@ -183,7 +300,7 @@ public class AIOpponent : MonoBehaviour
         float elapsed = 0f;
         while (elapsed < serveWindupSeconds)
         {
-            ball.position = transform.position + new Vector3(0.35f, 0.15f, 0.35f);
+            ball.position = transform.position + transform.rotation * new Vector3(0.35f, 0.15f, 0.35f);
             elapsed += Time.deltaTime;
             yield return null;
         }
@@ -289,13 +406,29 @@ public class AIOpponent : MonoBehaviour
         ballFaultTracker?.NotifyBodyHit(Side.AI);
     }
 
+    private void BeginSwing(float direction)
+    {
+        if (swingTimer > 0f) return;
+        swingTimer = SwingDuration;
+        swingDirection = direction;
+    }
+
+    // A horizontal racket sweep on the ball's side; eases back to the rest
+    // pose after the follow-through.
     private void UpdateSwingAnimation()
     {
-        if (racketVisual == null || swingTimer <= 0f) return;
+        if (racketVisual == null) return;
+
+        if (swingTimer <= 0f)
+        {
+            racketVisual.localRotation = Quaternion.Slerp(
+                racketVisual.localRotation, racketRestRotation, 8f * Time.deltaTime);
+            return;
+        }
 
         swingTimer -= Time.deltaTime;
         float progress = 1f - Mathf.Max(swingTimer, 0f) / SwingDuration;
-        float angle = Mathf.Sin(progress * Mathf.PI) * -90f;
-        racketVisual.localRotation = racketRestRotation * Quaternion.AngleAxis(angle, Vector3.right);
+        float angle = Mathf.Sin(progress * Mathf.PI) * 120f * swingDirection;
+        racketVisual.localRotation = racketRestRotation * Quaternion.AngleAxis(angle, Vector3.up);
     }
 }
