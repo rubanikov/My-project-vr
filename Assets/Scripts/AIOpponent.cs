@@ -89,7 +89,7 @@ public class AIOpponent : MonoBehaviour
 
     private float swingTimer;
     private float swingDirection = 1f;
-    private const float SwingDuration = 0.4f;
+    private const float SwingDuration = 0.45f;
     private Quaternion racketRestRotation;
 
     private void Awake()
@@ -413,8 +413,11 @@ public class AIOpponent : MonoBehaviour
         swingDirection = direction;
     }
 
-    // A horizontal racket sweep on the ball's side; eases back to the rest
-    // pose after the follow-through.
+    // Backswing then follow-through, sweeping the racket horizontally around
+    // the BODY's vertical axis (pre-multiplied, i.e. parent space). The first
+    // version post-multiplied about the racket's own local up — which is its
+    // handle axis, so the racket just twirled invisibly in place (the user's
+    // "still shows no animation" report). Eases back to rest afterwards.
     private void UpdateSwingAnimation()
     {
         if (racketVisual == null) return;
@@ -428,7 +431,10 @@ public class AIOpponent : MonoBehaviour
 
         swingTimer -= Time.deltaTime;
         float progress = 1f - Mathf.Max(swingTimer, 0f) / SwingDuration;
-        float angle = Mathf.Sin(progress * Mathf.PI) * 120f * swingDirection;
-        racketVisual.localRotation = racketRestRotation * Quaternion.AngleAxis(angle, Vector3.up);
+        float angle = progress < 0.3f
+            ? Mathf.Lerp(0f, -70f, progress / 0.3f)          // wind back
+            : Mathf.Lerp(-70f, 110f, (progress - 0.3f) / 0.7f); // sweep through
+        racketVisual.localRotation =
+            Quaternion.AngleAxis(angle * swingDirection, Vector3.up) * racketRestRotation;
     }
 }
