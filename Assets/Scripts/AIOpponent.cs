@@ -109,6 +109,15 @@ public class AIOpponent : MonoBehaviour
     private Transform handSocket;
     private Quaternion handSocketRestRotation;
 
+    // Rigged path (2026-08-27): the robot model was auto-rigged (Unity AI /
+    // Tripo Rigging Biped), so when its skeleton is present the swing drives
+    // the REAL bones — hips, shoulder, elbow, wrist — and the racket rides in
+    // the actual hand. The socket chain above stays as the fallback for an
+    // unrigged robot visual.
+    private bool rigged;
+    private Transform waistBone, shoulderBone, elbowBone, wristBone;
+    private Quaternion waistRest, shoulderRestRotation, elbowRest, wristRest;
+
     private BallContactSounds ballSounds;
 
     private void Awake()
@@ -464,6 +473,45 @@ public class AIOpponent : MonoBehaviour
             }
         }
 
+        // Rigged robot: bind to its skeleton and put the racket in the hand.
+        if (robotVisual != null)
+        {
+            waistBone = FindDeep(robotVisual, "Waist");
+
+            // The glTF handedness flip mirrors the rig's L_/R_ names relative
+            // to the world, so trust geometry over labels: take the hand bone
+            // physically closest to the racket's authored rest position, and
+            // its side's arm chain with it.
+            Transform rHand = FindDeep(robotVisual, "R_Hand");
+            Transform lHand = FindDeep(robotVisual, "L_Hand");
+            Transform hand = rHand;
+            if (lHand != null && (rHand == null
+                || (lHand.position - racketVisual.position).sqrMagnitude
+                    < (rHand.position - racketVisual.position).sqrMagnitude))
+            {
+                hand = lHand;
+            }
+            if (hand != null)
+            {
+                string side = hand.name.StartsWith("L_") ? "L_" : "R_";
+                shoulderBone = FindDeep(robotVisual, side + "Upperarm");
+                elbowBone = FindDeep(robotVisual, side + "Forearm");
+                wristBone = hand;
+            }
+
+            if (wristBone != null && shoulderBone != null)
+            {
+                racketVisual.position = wristBone.position; // snap to the hand, keep the authored tilt
+                racketVisual.SetParent(wristBone, true);
+                if (waistBone != null) waistRest = waistBone.localRotation;
+                shoulderRestRotation = shoulderBone.localRotation;
+                if (elbowBone != null) elbowRest = elbowBone.localRotation;
+                wristRest = wristBone.localRotation;
+                rigged = true;
+                return;
+            }
+        }
+
         torsoPivot = new GameObject("TorsoPivot").transform;
         torsoPivot.SetParent(transform, false);
         if (robotVisual != null) robotVisual.SetParent(torsoPivot, true);
@@ -485,16 +533,88 @@ public class AIOpponent : MonoBehaviour
         // robot itself is rigged; the racket still swings from the socket.
     }
 
+    private static Transform FindDeep(Transform root, string name)
+    {
+        foreach (Transform t in root.GetComponentsInChildren<Transform>(true))
+        {
+            if (t.name == name) return t;
+        }
+        return null;
+    }
+
+    private void UpdateSwingAnimation()
+    {
+        if (rigged) UpdateRiggedSwing();
+        else if (handSocket != null) UpdateSocketSwing();
+    }
+
+    // Bone axis conventions vary per rig, so every joint sweeps about the
+    // WORLD vertical converted into its parent's space each frame — a
+    // horizontal swing regardless of how the rig authored its local axes.
+    // Applied parent-first (waist → shoulder → elbow → wrist) so each
+    // conversion sees the joints above it already posed this frame.
+    private static void ApplyBoneYaw(Transform bone, Quaternion rest, float degrees)
+    {
+        if (bone == null) return;
+        Vector3 axis = bone.parent != null
+            ? bone.parent.InverseTransformDirection(Vector3.up)
+            : Vector3.up;
+        bone.localRotation = Quaternion.AngleAxis(degrees, axis) * rest;
+    }
+
+    // The kinetic chain on the real skeleton: hips coil and lead, shoulder
+    // carries the arc, elbow follows, wrist lags then snaps through contact.
+    private void UpdateRiggedSwing()
+    {
+        if (swingTimer <= 0f)
+        {
+            float ease = 8f * Time.deltaTime;
+            if (waistBone != null)
+                waistBone.localRotation = Quaternion.Slerp(waistBone.localRotation, waistRest, ease);
+            if (shoulderBone != null)
+                shoulderBone.localRotation = Quaternion.Slerp(shoulderBone.localRotation, shoulderRestRotation, ease);
+            if (elbowBone != null)
+                elbowBone.localRotation = Quaternion.Slerp(elbowBone.localRotation, elbowRest, ease);
+            if (wristBone != null)
+                wristBone.localRotation = Quaternion.Slerp(wristBone.localRotation, wristRest, ease);
+            return;
+        }
+
+        swingTimer -= Time.deltaTime;
+        float progress = 1f - Mathf.Max(swingTimer, 0f) / SwingDuration;
+
+        float waist, shoulder, elbow, wrist;
+        if (progress < 0.3f)
+        {
+            float p = progress / 0.3f;
+            waist = Mathf.Lerp(0f, -25f, p);
+            shoulder = Mathf.Lerp(0f, -60f, p);
+            elbow = Mathf.Lerp(0f, -15f, p);
+            wrist = Mathf.Lerp(0f, -30f, p);
+        }
+        else
+        {
+            float p = (progress - 0.3f) / 0.7f;
+            waist = Mathf.Lerp(-25f, 30f, Mathf.Sin(p * Mathf.PI * 0.5f)); // hips lead: eased out
+            shoulder = Mathf.Lerp(-60f, 100f, p);
+            elbow = Mathf.Lerp(-15f, 35f, p);
+            wrist = Mathf.Lerp(-30f, 45f, p * p);                          // wrist lags, snaps late
+        }
+
+        ApplyBoneYaw(waistBone, waistRest, waist * swingDirection);
+        ApplyBoneYaw(shoulderBone, shoulderRestRotation, shoulder * swingDirection);
+        ApplyBoneYaw(elbowBone, elbowRest, elbow * swingDirection);
+        ApplyBoneYaw(wristBone, wristRest, wrist * swingDirection);
+    }
+
     // Wind-up, sweep, follow-through across three joints, all pre-multiplied
     // about the parent's vertical axis (the old single-pivot version's
     // lesson: post-multiplying about the racket's own up — its handle axis —
     // just twirled it invisibly in place). The hips coil first and lead the
     // sweep, the shoulder carries the arc, and the wrist lags then snaps
     // through contact — the standard kinetic-chain read. Eases back to rest.
-    private void UpdateSwingAnimation()
+    private void UpdateSocketSwing()
     {
-        if (handSocket == null) return;
-
         if (swingTimer <= 0f)
         {
             float ease = 8f * Time.deltaTime;

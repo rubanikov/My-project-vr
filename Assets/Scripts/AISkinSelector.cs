@@ -50,7 +50,9 @@ public class AISkinSelector : MonoBehaviour
         Skin skin = skins[index];
         if (robotVisual != null && skin.material != null)
         {
-            foreach (var renderer in robotVisual.GetComponentsInChildren<MeshRenderer>(true))
+            // Renderer, not MeshRenderer: the rigged robot draws through a
+            // SkinnedMeshRenderer (2026-08-27 rig swap).
+            foreach (var renderer in robotVisual.GetComponentsInChildren<Renderer>(true))
             {
                 renderer.sharedMaterial = skin.material;
             }
