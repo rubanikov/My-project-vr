@@ -77,7 +77,18 @@ public class MatchController : MonoBehaviour
     {
         ballRestPosition = new Vector3(
             courtBuilder.CenterX, 1f, courtBuilder.NetZ + courtBuilder.HalfDepthPerSide * 0.5f);
-        ResetBall();
+
+        // A court rebuild mid-match (boundary realign, recenter) means the
+        // floor just moved — void the match rather than continue a rally on
+        // a court it didn't happen in. First build always lands in the else.
+        if (MatchInProgress)
+        {
+            ResetMatch();
+        }
+        else
+        {
+            ResetBall();
+        }
     }
 
     // Called from PlayerRacket's collision handler on every racket-ball hit —

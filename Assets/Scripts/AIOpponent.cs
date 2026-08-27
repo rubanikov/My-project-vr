@@ -173,7 +173,8 @@ public class AIOpponent : MonoBehaviour
 
     private void Update()
     {
-        if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
+        // Gated on timeScale: while the pause menu is open, A belongs to it.
+        if (Time.timeScale > 0f && OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
         {
             CycleDifficulty();
         }

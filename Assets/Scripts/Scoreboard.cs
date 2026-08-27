@@ -15,6 +15,7 @@ public class Scoreboard : MonoBehaviour
     [SerializeField] private CourtBuilder courtBuilder;
     [SerializeField] private AIOpponent aiOpponent;
     [SerializeField] private MatchPauseController pauseController;
+    [SerializeField] private AISkinSelector skinSelector;
     [Tooltip("Transparent dark material for the backing panel (must be an asset so its shader variant ships in builds).")]
     [SerializeField] private Material panelMaterial;
 
@@ -43,6 +44,7 @@ public class Scoreboard : MonoBehaviour
         }
         if (aiOpponent != null) aiOpponent.DifficultyChanged += OnDifficultyChanged;
         if (pauseController != null) pauseController.PauseChanged += OnPauseChanged;
+        if (skinSelector != null) skinSelector.SkinChanged += OnSkinChanged;
     }
 
     private void OnDisable()
@@ -61,6 +63,7 @@ public class Scoreboard : MonoBehaviour
         }
         if (aiOpponent != null) aiOpponent.DifficultyChanged -= OnDifficultyChanged;
         if (pauseController != null) pauseController.PauseChanged -= OnPauseChanged;
+        if (skinSelector != null) skinSelector.SkinChanged -= OnSkinChanged;
     }
 
     private void OnCourtBuilt(Vector3 halfExtents)
@@ -147,6 +150,11 @@ public class Scoreboard : MonoBehaviour
     private void OnMatchReset()
     {
         ShowIdleState();
+    }
+
+    private void OnSkinChanged(string skinName)
+    {
+        ShowTemporary($"AI SKIN: {skinName.ToUpper()}");
     }
 
     private void OnPauseChanged(bool paused)

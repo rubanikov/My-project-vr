@@ -1,0 +1,12 @@
+{
+    "asset": "9963b776855750b429dbeeca23e21d1a",
+    "fileName": "01a0444b-6fe6-74b7-9860-d7620e53f078_Preview.jpg",
+    "prompt": "sleek futuristic android shell, glossy white smooth polymer panels, translucent sections, minimal grey joints, subtle blue glowing seams, clean high-tech robot surface",
+    "negativePrompt": "",
+    "model": "realistic-textures-3-0",
+    "modelName": "Realistic Textures 3.0",
+    "customSeed": 1191604413,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}

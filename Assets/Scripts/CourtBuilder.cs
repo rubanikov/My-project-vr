@@ -68,9 +68,88 @@ public class CourtBuilder : MonoBehaviour
     // data even when a Simulator/headset is present.
     [SerializeField] private float boundaryWaitTimeoutSeconds = 2f;
 
+    private Coroutine buildCoroutine;
+    private bool recenterHooked;
+    private float resetHoldSeconds;
+
+    // Hold Y (left controller) this long to realign the court to the
+    // boundary — a deliberate gesture, so a stray press can't void a rally.
+    private const float ResetHoldRequiredSeconds = 1f;
+    // After a fallback build, keep polling this long for real boundary data
+    // and silently rebuild if it shows up (the launch-time read failing is
+    // one of the two ways the court ends up mismatching the room).
+    private const float FallbackUpgradePollSeconds = 30f;
+
     private void Start()
     {
-        StartCoroutine(BuildWhenBoundaryReady());
+        buildCoroutine = StartCoroutine(BuildWhenBoundaryReady());
+    }
+
+    // Tear down and rebuild against the CURRENT tracking space (2026-08-27
+    // user request: "the court sometimes does not match the boundary"). Two
+    // known causes: a recenter moves the tracking origin out from under the
+    // built court, and a failed boundary read at launch builds the fallback
+    // court. Consumers all reposition via CourtBuilt; MatchController
+    // additionally voids a running match (the floor just moved).
+    public void Rebuild()
+    {
+        if (buildCoroutine != null) StopCoroutine(buildCoroutine);
+        for (int i = transform.childCount - 1; i >= 0; i--)
+        {
+            Destroy(transform.GetChild(i).gameObject);
+        }
+        buildCoroutine = StartCoroutine(BuildWhenBoundaryReady());
+    }
+
+    private void Update()
+    {
+        // Gated on timeScale like the other gameplay buttons — the pause
+        // menu owns the controller while open.
+        if (Time.timeScale <= 0f)
+        {
+            resetHoldSeconds = 0f;
+            return;
+        }
+
+        if (OVRInput.Get(OVRInput.Button.Two, OVRInput.Controller.LTouch)) // Y held
+        {
+            resetHoldSeconds += Time.deltaTime;
+            if (resetHoldSeconds >= ResetHoldRequiredSeconds)
+            {
+                resetHoldSeconds = float.NegativeInfinity; // must release before it can fire again
+                Debug.Log("[CourtBuilder] Y held — realigning the court to the boundary.");
+                Rebuild();
+            }
+        }
+        else
+        {
+            resetHoldSeconds = 0f;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (recenterHooked && OVRManager.display != null)
+        {
+            OVRManager.display.RecenteredPose -= OnRecenteredPose;
+        }
+    }
+
+    // A recenter (long-press of the Oculus button) moves the tracking origin
+    // — every world-space object, the court included, is suddenly somewhere
+    // else relative to the room. Rebuilding immediately keeps the court and
+    // the boundary in lockstep without the player doing anything.
+    private void HookRecenter()
+    {
+        if (recenterHooked || OVRManager.display == null) return;
+        OVRManager.display.RecenteredPose += OnRecenteredPose;
+        recenterHooked = true;
+    }
+
+    private void OnRecenteredPose()
+    {
+        Debug.Log("[CourtBuilder] Tracking recentered — rebuilding the court in the new space.");
+        Rebuild();
     }
 
     private IEnumerator BuildWhenBoundaryReady()
@@ -114,6 +193,24 @@ public class CourtBuilder : MonoBehaviour
         BuildWallExtensions(courtHalf, NetZ);
 
         CourtBuilt?.Invoke(halfExtents);
+        HookRecenter();
+
+        // Fallback build means the boundary read failed — keep watching for
+        // real data and upgrade in place the moment it appears.
+        if (!usedRealBoundary)
+        {
+            float upgradeDeadline = Time.unscaledTime + FallbackUpgradePollSeconds;
+            while (Time.unscaledTime < upgradeDeadline)
+            {
+                if (TryGetPlayArea(out _, out _))
+                {
+                    Debug.Log("[CourtBuilder] Real boundary appeared after a fallback build — rebuilding.");
+                    Rebuild();
+                    yield break;
+                }
+                yield return new WaitForSecondsRealtime(0.5f);
+            }
+        }
     }
 
     private Vector3 GetFallbackHalfExtents() => new Vector3(fallbackHalfWidth, 0f, fallbackHalfDepth);

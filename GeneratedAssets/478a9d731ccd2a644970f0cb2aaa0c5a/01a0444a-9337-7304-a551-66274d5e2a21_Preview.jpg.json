@@ -1,0 +1,12 @@
+{
+    "asset": "478a9d731ccd2a644970f0cb2aaa0c5a",
+    "fileName": "01a0444a-9337-7304-a551-66274d5e2a21_Preview.jpg",
+    "prompt": "futuristic reptilian humanoid skin, iridescent green overlapping armored scales, subtle cyan bioluminescent seams between scale plates, sci-fi alien lizard hide",
+    "negativePrompt": "",
+    "model": "realistic-textures-3-0",
+    "modelName": "Realistic Textures 3.0",
+    "customSeed": 1793541717,
+    "w3CTraceId": "",
+    "feedback": 0,
+    "refinementMode": "Generation"
+}

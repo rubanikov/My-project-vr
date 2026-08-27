@@ -60,6 +60,7 @@ public class StartScreen : MonoBehaviour
     private void Update()
     {
         if (!visible || matchController == null) return;
+        if (Time.timeScale == 0f) return; // pause menu owns the controller
 
         if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch))
         {

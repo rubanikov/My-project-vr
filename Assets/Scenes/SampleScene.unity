@@ -152,6 +152,7 @@ MonoBehaviour:
   courtBuilder: {fileID: 493433660}
   aiOpponent: {fileID: 948571792}
   pauseController: {fileID: 618482618}
+  skinSelector: {fileID: 948571797}
   panelMaterial: {fileID: 2100000, guid: adce5e74c324320489875d269919032c, type: 2}
   heightOnWall: 2
   panelSize: {x: 2.2, y: 0.9}
@@ -1198,6 +1199,7 @@ GameObject:
   m_Component:
   - component: {fileID: 493433661}
   - component: {fileID: 493433660}
+  - component: {fileID: 493433662}
   m_Layer: 0
   m_Name: Court
   m_TagString: Untagged
@@ -1226,7 +1228,7 @@ MonoBehaviour:
   wallHeight: 4
   wallThickness: 0.5
   wallMaterial: {fileID: 2100000, guid: 36eca442a220ea64196e43726ed7317c, type: 2}
-  floorMaterial: {fileID: 2100000, guid: 1ab738d7d235c1c48a8de97b8c5311d7, type: 2}
+  floorMaterial: {fileID: 2100000, guid: 7769a4d5c6563d4488613f638dae0e34, type: 2}
   boundaryWaitTimeoutSeconds: 2
 --- !u!4 &493433661
 Transform:
@@ -1243,6 +1245,27 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &493433662
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 493433659}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d76175eac1c3a8e4a99a3e037eaa607b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CourtGlowPulse
+  courtBuilder: {fileID: 493433660}
+  matchController: {fileID: 618482616}
+  trimMaterial: {fileID: 2100000, guid: 03f5795db9cfc0949826e94ae1bf6a33, type: 2}
+  idleColor: {r: 0, g: 0.55, b: 0.6, a: 1}
+  playerPulseColor: {r: 0.1, g: 1.6, b: 0.3, a: 1}
+  aiPulseColor: {r: 1.7, g: 0.15, b: 0.1, a: 1}
+  pulseSeconds: 1.1
+  matchEndPulseSeconds: 3
+  trimThickness: 0.035
 --- !u!1 &618482615
 GameObject:
   m_ObjectHideFlags: 0
@@ -1311,6 +1334,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MatchPauseController
   matchController: {fileID: 618482616}
+  panelMaterial: {fileID: 2100000, guid: adce5e74c324320489875d269919032c, type: 2}
 --- !u!4 &739911593 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 459718, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
@@ -1448,6 +1472,7 @@ GameObject:
   - component: {fileID: 948571794}
   - component: {fileID: 948571793}
   - component: {fileID: 948571792}
+  - component: {fileID: 948571797}
   m_Layer: 0
   m_Name: AIOpponent
   m_TagString: Untagged
@@ -1578,6 +1603,30 @@ Transform:
   - {fileID: 1335446574}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &948571797
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 948571791}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6bb0460785add5b4b8232457e659eaec, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AISkinSelector
+  robotVisual: {fileID: 1334934668}
+  skins:
+  - name: Android
+    material: {fileID: 2100000, guid: 9963b776855750b429dbeeca23e21d1a, type: 2}
+  - name: Red-Gold Armor
+    material: {fileID: 2100000, guid: b899db54fcc9e444796c3da596e25b87, type: 2}
+  - name: Reptilian
+    material: {fileID: 2100000, guid: 478a9d731ccd2a644970f0cb2aaa0c5a, type: 2}
+  - name: Dino
+    material: {fileID: 2100000, guid: 470a317745aae734094de4293e7b3996, type: 2}
+  - name: Gunmetal
+    material: {fileID: 2100000, guid: 958630877a213e54294048b925bb5762, type: 2}
 --- !u!1 &996291160
 GameObject:
   m_ObjectHideFlags: 0
@@ -1793,6 +1842,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 948571796}
     m_Modifications:
+    - target: {fileID: 1746988226953845204, guid: 790705bec8b4ca54b8bdc44b3692a179, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 9963b776855750b429dbeeca23e21d1a, type: 2}
     - target: {fileID: 1753634394161120559, guid: 790705bec8b4ca54b8bdc44b3692a179, type: 3}
       propertyPath: m_LocalScale.x
       value: 1.8
@@ -2282,6 +2335,7 @@ GameObject:
   - component: {fileID: 2064836831}
   - component: {fileID: 2064836830}
   - component: {fileID: 2064836832}
+  - component: {fileID: 2064836833}
   m_Layer: 0
   m_Name: Ball
   m_TagString: Untagged
@@ -2598,6 +2652,24 @@ MonoBehaviour:
   matchController: {fileID: 0}
   margin: 0.75
   escapeSeconds: 0.6
+--- !u!114 &2064836833
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2064836820}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7d0927ded0a0e1b4bb6a91227239b562, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BallImpactEffects
+  ringMaterial: {fileID: 2100000, guid: 70e15d38add787840bcae5b93191d9f6, type: 2}
+  poolSize: 8
+  lifeSeconds: 0.4
+  minSize: 0.18
+  maxSize: 0.6
+  saturationSpeed: 9
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

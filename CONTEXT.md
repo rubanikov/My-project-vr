@@ -74,3 +74,15 @@ The AI's movement away from the ball's path when it is not the AI's Turn, driven
 
 **Scoreboard**:
 Semi-transparent panel on the wall behind the AI: both scores, whose Serve it is, and the match result.
+
+**Score Pulse**:
+The court's edge trim strips surging green (player point) or red (AI point) for about a second before easing back to idle cyan.
+
+**Impact Ripple**:
+The expanding ring that flares where the ball touches a wall, the floor, the ceiling, or the net — larger and brighter for harder hits. Racket contacts speak through haptics and sound instead.
+
+**Skin**:
+A shell material for the AI robot, cycled with X. Textures only — the robot's body never changes shape.
+
+**Pause Menu**:
+The floating panel opened by the menu button: ball-speed multiplier, resume, reset. The game is frozen while it is open and the menu owns the controller buttons.
