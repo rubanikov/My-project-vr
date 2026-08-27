@@ -113,7 +113,10 @@ public class CourtBuilder : MonoBehaviour
 
         if (OVRInput.Get(OVRInput.Button.Two, OVRInput.Controller.LTouch)) // Y held
         {
-            resetHoldSeconds += Time.deltaTime;
+            // Unscaled: the gesture is a real-world second regardless of the
+            // Game Speed dilation (at 0.5x a scaled timer needed a 2s hold —
+            // long enough to read as "the button does nothing").
+            resetHoldSeconds += Time.unscaledDeltaTime;
             if (resetHoldSeconds >= ResetHoldRequiredSeconds)
             {
                 resetHoldSeconds = float.NegativeInfinity; // must release before it can fire again
@@ -215,6 +218,18 @@ public class CourtBuilder : MonoBehaviour
 
     private Vector3 GetFallbackHalfExtents() => new Vector3(fallbackHalfWidth, 0f, fallbackHalfDepth);
 
+    private Transform cachedTrackingSpace;
+
+    private Transform TrackingSpace()
+    {
+        if (cachedTrackingSpace == null)
+        {
+            OVRCameraRig rig = FindFirstObjectByType<OVRCameraRig>();
+            if (rig != null) cachedTrackingSpace = rig.trackingSpace;
+        }
+        return cachedTrackingSpace;
+    }
+
     // Primary source: the play area's corner GEOMETRY, which carries both its
     // size AND its position in tracking space (Meta docs: GetGeometry returns
     // floor-level points "in local tracking space"). GetDimensions alone —
@@ -222,6 +237,16 @@ public class CourtBuilder : MonoBehaviour
     // court on the player instead of the room. Falls back to dimensions-only
     // (centered on origin) if geometry is unavailable. OVRBoundary reports
     // nothing until the OpenXR session is fully running, so the caller polls.
+    //
+    // ORIENTED-rectangle fix (2026-08-27, "holding Y does not realign the
+    // court with the boundary"): tracking-space axes point wherever the last
+    // recenter faced — almost never square to the drawn Guardian rectangle.
+    // The previous min/max box was that rectangle's AXIS-ALIGNED bound, so
+    // the court came out rotated relative to the room and a rebuild
+    // reproduced the identical mismatch. Now the rectangle's own edges are
+    // measured and the TRACKING SPACE is yawed so the room lands axis-aligned
+    // in world space: the court (and every consumer's world-axis rule math)
+    // stays canonical, and the whole tracked world rotates to match the room.
     private bool TryGetPlayArea(out Vector3 center, out Vector3 halfExtents)
     {
         const float minSaneDimension = 0.5f;
@@ -230,16 +255,61 @@ public class CourtBuilder : MonoBehaviour
         if (OVRManager.boundary == null) return false;
 
         Vector3[] points = OVRManager.boundary.GetGeometry(OVRBoundary.BoundaryType.PlayArea);
+
+        if (points != null && points.Length == 4)
+        {
+            // Corners arrive sequentially around the rectangle, so p0→p1 and
+            // p1→p2 are its two perpendicular sides. Guard on that
+            // perpendicularity in case the order ever differs.
+            Vector3 edgeA = points[1] - points[0];
+            Vector3 edgeB = points[2] - points[1];
+            edgeA.y = 0f;
+            edgeB.y = 0f;
+            bool saneRect = edgeA.magnitude > minSaneDimension
+                && edgeB.magnitude > minSaneDimension
+                && Mathf.Abs(Vector3.Dot(edgeA.normalized, edgeB.normalized)) < 0.3f;
+            if (saneRect)
+            {
+                // Depth axis = the side more aligned with tracking forward,
+                // pointed forward, so the net keeps landing on the same side
+                // of the room as before this fix.
+                bool aIsDepth = Mathf.Abs(Vector3.Dot(edgeA.normalized, Vector3.forward))
+                    >= Mathf.Abs(Vector3.Dot(edgeB.normalized, Vector3.forward));
+                Vector3 depthEdge = aIsDepth ? edgeA : edgeB;
+                Vector3 widthEdge = aIsDepth ? edgeB : edgeA;
+                Vector3 depthDir = depthEdge.normalized;
+                if (Vector3.Dot(depthDir, Vector3.forward) < 0f) depthDir = -depthDir;
+
+                float yawDegrees = Mathf.Atan2(depthDir.x, depthDir.z) * Mathf.Rad2Deg;
+                Transform space = TrackingSpace();
+                if (space != null)
+                {
+                    space.rotation = Quaternion.AngleAxis(-yawDegrees, Vector3.up);
+                }
+
+                Vector3 trackingCenter =
+                    (points[0] + points[1] + points[2] + points[3]) * 0.25f;
+                center = space != null ? space.TransformPoint(trackingCenter) : trackingCenter;
+                center.y = 0f;
+                halfExtents = new Vector3(widthEdge.magnitude * 0.5f, 0f, depthEdge.magnitude * 0.5f);
+                return true;
+            }
+        }
+
         if (points != null && points.Length >= 3)
         {
+            // Non-rectangular geometry: world-space axis-aligned bound of the
+            // points (through whatever tracking yaw is currently applied).
+            Transform space = TrackingSpace();
             float minX = float.MaxValue, maxX = float.MinValue;
             float minZ = float.MaxValue, maxZ = float.MinValue;
             foreach (Vector3 p in points)
             {
-                minX = Mathf.Min(minX, p.x);
-                maxX = Mathf.Max(maxX, p.x);
-                minZ = Mathf.Min(minZ, p.z);
-                maxZ = Mathf.Max(maxZ, p.z);
+                Vector3 world = space != null ? space.TransformPoint(p) : p;
+                minX = Mathf.Min(minX, world.x);
+                maxX = Mathf.Max(maxX, world.x);
+                minZ = Mathf.Min(minZ, world.z);
+                maxZ = Mathf.Max(maxZ, world.z);
             }
             float halfX = (maxX - minX) * 0.5f;
             float halfZ = (maxZ - minZ) * 0.5f;

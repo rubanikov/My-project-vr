@@ -27,6 +27,11 @@ Outcome of a read-then-decide session over the five playtest reports (serve-snap
 - `MatchController.cs` — serve alternation, let handling, and the fault-swallow window are all correct as-is (the warm-up label polls `SessionArmed` instead of adding an event).
 - Serve Let stays unbounded (glossary rule): the AI re-randomizes its target every serve, and with time dilation the doomed-arc loop cannot recur.
 
+## Same-day follow-ups (post-deploy playtest)
+
+- **"Holding Y does not realign the court"**: two fixes in `CourtBuilder.cs`. (a) The hold timer now uses unscaled time (at Game Speed 0.5× the old scaled timer needed a 2 s real hold). (b) Root cause: play-area corners were flattened to an axis-aligned box in tracking space, so the court was built rotated relative to the drawn Guardian rectangle and a rebuild reproduced the identical mismatch. Now the rectangle's own edges are measured and the OVR tracking space is yawed so the room lands axis-aligned in world space — the court and all world-axis rule math stay canonical. Debug.Log lines from the device never reached logcat during diagnosis (still unexplained; note for future sessions).
+- **"You added a third arm"**: the Tripo robot mesh has arms baked in; the procedural capsule arm overlapped its right arm. Capsule/hand visuals removed — the invisible socket chain and racket swing remain. Real fix pending: rig the robot itself (Unity AI `RigMesh` / Tripo Rigging 1.0 Biped) and drive its actual bones.
+
 ## Known follow-ups
 
 - The arm's rest pose (`shoulderLocalPosition`, segment thickness) is tuned blind — needs one on-device look.

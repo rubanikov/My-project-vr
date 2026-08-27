@@ -479,38 +479,10 @@ public class AIOpponent : MonoBehaviour
         racketVisual.SetParent(handSocket, true);
         handSocketRestRotation = handSocket.localRotation;
 
-        BuildArmVisual();
-    }
-
-    // Tron-styled arm: a stretched capsule from shoulder to hand plus a hand
-    // sphere at the socket, sharing the racket's material. Visual only — the
-    // primitive colliders are stripped so the arm can never touch the ball.
-    private void BuildArmVisual()
-    {
-        Renderer racketRenderer = racketVisual.GetComponentInChildren<Renderer>();
-        Material armMaterial = racketRenderer != null ? racketRenderer.sharedMaterial : null;
-
-        Vector3 toHand = shoulderPivot.InverseTransformPoint(handSocket.position);
-
-        GameObject arm = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-        arm.name = "ArmVisual";
-        Destroy(arm.GetComponent<Collider>());
-        arm.transform.SetParent(shoulderPivot, false);
-        arm.transform.localPosition = toHand * 0.5f;
-        arm.transform.localRotation = Quaternion.FromToRotation(Vector3.up, toHand.normalized);
-        arm.transform.localScale = new Vector3(0.07f, toHand.magnitude * 0.5f, 0.07f);
-
-        GameObject hand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-        hand.name = "HandVisual";
-        Destroy(hand.GetComponent<Collider>());
-        hand.transform.SetParent(handSocket, false);
-        hand.transform.localScale = Vector3.one * 0.09f;
-
-        if (armMaterial != null)
-        {
-            arm.GetComponent<Renderer>().sharedMaterial = armMaterial;
-            hand.GetComponent<Renderer>().sharedMaterial = armMaterial;
-        }
+        // No capsule arm mesh here on purpose (2026-08-27 playtest: the
+        // robot model turned out to HAVE arms — a built one overlapped its
+        // right arm as a third limb). The pivots stay invisible until the
+        // robot itself is rigged; the racket still swings from the socket.
     }
 
     // Wind-up, sweep, follow-through across three joints, all pre-multiplied
