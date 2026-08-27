@@ -52,6 +52,11 @@ public static class BallSetup
         rb.mass = 0.3f;
         rb.useGravity = true;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+        // CCD covers flight, not overlap resolution: when the racket squeezes
+        // the ball against a wall, Unity's default lets the solver eject it at
+        // up to 10 m/s — sometimes out the far side. Cap it so squeezes
+        // resolve gently (2026-08-27, part of the ball-escape fixes).
+        rb.maxDepenetrationVelocity = 3f;
 
         if (ball.GetComponent<BallFaultTracker>() == null)
         {

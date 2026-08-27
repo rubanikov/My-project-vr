@@ -92,6 +92,11 @@ public class PlayerRacket : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         rb.isKinematic = true;
+        // The racket is the fastest object in the game (hand speed times the
+        // grip's lever arm) and kinematic bodies get no sweep CCD — Speculative
+        // is the only continuous mode they support, and without it a fast
+        // swing can step over the ball or shove it through the court shell.
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
         // Default physics runs at 50Hz (0.02s), well under Quest 2's ~72-90Hz
         // display/tracking refresh — a real hand swing updates controllerAnchor

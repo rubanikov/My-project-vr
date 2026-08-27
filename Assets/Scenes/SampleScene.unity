@@ -1224,7 +1224,7 @@ MonoBehaviour:
   netMaterial: {fileID: 2100000, guid: ee29bc69c2545fd4191bd085e308e2ff, type: 2}
   ceilingMaterial: {fileID: 0}
   wallHeight: 4
-  wallThickness: 0.15
+  wallThickness: 0.5
   wallMaterial: {fileID: 2100000, guid: 36eca442a220ea64196e43726ed7317c, type: 2}
   floorMaterial: {fileID: 2100000, guid: 1ab738d7d235c1c48a8de97b8c5311d7, type: 2}
   boundaryWaitTimeoutSeconds: 2

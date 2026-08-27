@@ -219,6 +219,12 @@ Implementation:
 5. **Start screen** (`StartScreen`, new object; `MatchController.SessionArmed` gate): a panel over the net (scoreboard's TextMesh idiom + same panel material) shows the full control map at launch, after every match, and on reset; racket-ball contact is inert until RIGHT TRIGGER arms the session — warm-up swings can't start a match. Scoreboard idle/rematch texts updated to point at the trigger.
 Wiring: new one-click menu item **Court Clash/Setup Feedback And Start Screen** (companion to Setup Ball In Scene). Components self-find scene refs at runtime; the menu item only adds them and assigns assets.
 
+**Anti-tunnel physics hardening (2026-08-27, follow-up — user: "do we have Enable CCD or any other options... like thick colliders?")**: audit found ball CCD already `ContinuousDynamic` (BallSetup) and 90Hz physics already set, but three gaps, all closed:
+1. **Racket CCD**: the kinematic racket Rigidbody was `Discrete` — the fastest object in the game had no continuous collision at all. Now `ContinuousSpeculative` (the only continuous mode kinematic bodies support), set in `PlayerRacket.Awake`.
+2. **Shell thickness**: walls/floor/ceiling were 0.1–0.15m — LESS than one 90Hz step of ball travel at the 15 m/s cap (~0.17m), and depenetration can eject through anything thin. All shell colliders are now `wallThickness` = 0.5m, grown OUTWARD (every inner face stays at the court edge — playable space unchanged; note the scene's serialized CourtBuilder.wallThickness also updated, since it overrides the code default). Floor and ceiling footprints overlap the walls so the shell has no corner seams. Net (0.04m) left alone — a rule-neutral obstacle.
+3. **Depenetration cap**: ball `maxDepenetrationVelocity` 10 (default) → 3, so a racket-vs-wall squeeze resolves gently instead of firing the ball through the far side.
+The `BallEscapeWatchdog` stays as the last-resort net behind all three.
+
 **Other active session**: a separate Claude Code session also works in this repo's parent teaching-workspace directory (maintains `../MISSION.md`, `../NOTES.md`, `../RESOURCES.md`, `../learning-records/`) and edits this PRD.md too. Expect concurrent edits to this file from that session.
 
 ## Why this design

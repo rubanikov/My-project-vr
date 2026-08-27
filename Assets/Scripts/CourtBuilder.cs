@@ -49,7 +49,12 @@ public class CourtBuilder : MonoBehaviour
         "geometry (angled panels, polygon inserts) can be added later as objects attached to " +
         "these flat walls, rather than baked into the walls themselves.")]
     [SerializeField] private float wallHeight = 4f; // raised to ceilingHeight 2026-08-26 (user: "move the walls up to the ceiling") — the invisible extension band auto-skips when the band is zero
-    [SerializeField] private float wallThickness = 0.15f;
+    // 0.5m, up from 0.15 (2026-08-27 ball-escape fixes): at the 15 m/s ball
+    // cap and 90Hz physics the ball moves ~0.17m per step, more than the old
+    // walls were thick — and depenetration (racket squeezing the ball against
+    // a wall) can eject through anything thin. The shell grows OUTWARD: every
+    // inner face stays at the court edge, so the playable space is unchanged.
+    [SerializeField] private float wallThickness = 0.5f;
 
     [Header("Materials (optional — defaults to Unity's built-in material if left empty)")]
     [SerializeField] private Material wallMaterial;
@@ -164,8 +169,11 @@ public class CourtBuilder : MonoBehaviour
         GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
         floor.name = "CourtFloor";
         floor.transform.SetParent(transform, false);
-        floor.transform.localScale = new Vector3(courtHalf.x * 2f, 0.1f, courtHalf.z * 2f);
-        floor.transform.localPosition = new Vector3(CenterX, -0.05f, centerZ);
+        // Wall-thick slab, top face at y=0, footprint overlapping the walls
+        // so the shell has no corner seams to slip through.
+        floor.transform.localScale = new Vector3(
+            courtHalf.x * 2f + wallThickness * 2f, wallThickness, courtHalf.z * 2f + wallThickness * 2f);
+        floor.transform.localPosition = new Vector3(CenterX, -wallThickness * 0.5f, centerZ);
         ApplyMaterial(floor, floorMaterial);
     }
 
@@ -175,14 +183,15 @@ public class CourtBuilder : MonoBehaviour
         float fullWidth = courtHalf.x * 2f;
         float fullDepth = courtHalf.z * 2f;
         float halfHeight = wallHeight * 0.5f;
+        float outward = wallThickness * 0.5f; // center offset that puts the inner face at the court edge
 
-        BuildWall("CourtWall_North", new Vector3(CenterX, halfHeight, centerZ + courtHalf.z),
+        BuildWall("CourtWall_North", new Vector3(CenterX, halfHeight, centerZ + courtHalf.z + outward),
             Quaternion.identity, new Vector3(fullWidth, wallHeight, wallThickness));
-        BuildWall("CourtWall_South", new Vector3(CenterX, halfHeight, centerZ - courtHalf.z),
+        BuildWall("CourtWall_South", new Vector3(CenterX, halfHeight, centerZ - courtHalf.z - outward),
             Quaternion.Euler(0f, 180f, 0f), new Vector3(fullWidth, wallHeight, wallThickness));
-        BuildWall("CourtWall_East", new Vector3(CenterX + courtHalf.x, halfHeight, centerZ),
+        BuildWall("CourtWall_East", new Vector3(CenterX + courtHalf.x + outward, halfHeight, centerZ),
             Quaternion.Euler(0f, 90f, 0f), new Vector3(fullDepth, wallHeight, wallThickness));
-        BuildWall("CourtWall_West", new Vector3(CenterX - courtHalf.x, halfHeight, centerZ),
+        BuildWall("CourtWall_West", new Vector3(CenterX - courtHalf.x - outward, halfHeight, centerZ),
             Quaternion.Euler(0f, -90f, 0f), new Vector3(fullDepth, wallHeight, wallThickness));
     }
 
@@ -217,8 +226,11 @@ public class CourtBuilder : MonoBehaviour
         GameObject ceiling = GameObject.CreatePrimitive(PrimitiveType.Cube);
         ceiling.name = "CourtCeiling";
         ceiling.transform.SetParent(transform, false);
-        ceiling.transform.localScale = new Vector3(courtHalf.x * 2f, 0.1f, courtHalf.z * 2f);
-        ceiling.transform.localPosition = new Vector3(CenterX, ceilingHeight + 0.05f, centerZ);
+        // Wall-thick lid, bottom face at ceilingHeight, overlapping the walls
+        // like the floor does.
+        ceiling.transform.localScale = new Vector3(
+            courtHalf.x * 2f + wallThickness * 2f, wallThickness, courtHalf.z * 2f + wallThickness * 2f);
+        ceiling.transform.localPosition = new Vector3(CenterX, ceilingHeight + wallThickness * 0.5f, centerZ);
         ApplyMaterial(ceiling, ceilingMaterial != null ? ceilingMaterial : wallMaterial);
     }
 
@@ -231,14 +243,15 @@ public class CourtBuilder : MonoBehaviour
         float bandCenterY = wallHeight + bandHeight * 0.5f;
         float fullWidth = courtHalf.x * 2f;
         float fullDepth = courtHalf.z * 2f;
+        float outward = wallThickness * 0.5f; // same inner-face alignment as the walls below
 
-        BuildInvisiblePanel("CourtWallExt_North", new Vector3(CenterX, bandCenterY, centerZ + courtHalf.z),
+        BuildInvisiblePanel("CourtWallExt_North", new Vector3(CenterX, bandCenterY, centerZ + courtHalf.z + outward),
             new Vector3(fullWidth, bandHeight, wallThickness));
-        BuildInvisiblePanel("CourtWallExt_South", new Vector3(CenterX, bandCenterY, centerZ - courtHalf.z),
+        BuildInvisiblePanel("CourtWallExt_South", new Vector3(CenterX, bandCenterY, centerZ - courtHalf.z - outward),
             new Vector3(fullWidth, bandHeight, wallThickness));
-        BuildInvisiblePanel("CourtWallExt_East", new Vector3(CenterX + courtHalf.x, bandCenterY, centerZ),
+        BuildInvisiblePanel("CourtWallExt_East", new Vector3(CenterX + courtHalf.x + outward, bandCenterY, centerZ),
             new Vector3(wallThickness, bandHeight, fullDepth));
-        BuildInvisiblePanel("CourtWallExt_West", new Vector3(CenterX - courtHalf.x, bandCenterY, centerZ),
+        BuildInvisiblePanel("CourtWallExt_West", new Vector3(CenterX - courtHalf.x - outward, bandCenterY, centerZ),
             new Vector3(wallThickness, bandHeight, fullDepth));
     }
 
