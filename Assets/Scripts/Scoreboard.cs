@@ -14,6 +14,7 @@ public class Scoreboard : MonoBehaviour
     [SerializeField] private MatchController matchController;
     [SerializeField] private CourtBuilder courtBuilder;
     [SerializeField] private AIOpponent aiOpponent;
+    [SerializeField] private MatchPauseController pauseController;
     [Tooltip("Transparent dark material for the backing panel (must be an asset so its shader variant ships in builds).")]
     [SerializeField] private Material panelMaterial;
 
@@ -33,10 +34,14 @@ public class Scoreboard : MonoBehaviour
         {
             matchController.MatchStarted += OnMatchStarted;
             matchController.PointScored += OnPointScored;
+            matchController.PointDetail += OnPointDetail;
+            matchController.ServeLetOccurred += OnServeLet;
             matchController.ServeChanged += OnServeChanged;
             matchController.MatchEnded += OnMatchEnded;
+            matchController.MatchReset += OnMatchReset;
         }
         if (aiOpponent != null) aiOpponent.DifficultyChanged += OnDifficultyChanged;
+        if (pauseController != null) pauseController.PauseChanged += OnPauseChanged;
     }
 
     private void OnDisable()
@@ -46,10 +51,14 @@ public class Scoreboard : MonoBehaviour
         {
             matchController.MatchStarted -= OnMatchStarted;
             matchController.PointScored -= OnPointScored;
+            matchController.PointDetail -= OnPointDetail;
+            matchController.ServeLetOccurred -= OnServeLet;
             matchController.ServeChanged -= OnServeChanged;
             matchController.MatchEnded -= OnMatchEnded;
+            matchController.MatchReset -= OnMatchReset;
         }
         if (aiOpponent != null) aiOpponent.DifficultyChanged -= OnDifficultyChanged;
+        if (pauseController != null) pauseController.PauseChanged -= OnPauseChanged;
     }
 
     private void OnCourtBuilt(Vector3 halfExtents)
@@ -105,6 +114,50 @@ public class Scoreboard : MonoBehaviour
     {
         SetScore(0, 0);
         SetStatus("HIT THE BALL TO START — YOUR SERVE   (A = DIFFICULTY)");
+    }
+
+    // Every point announces who won it and why — instant faults are
+    // otherwise silent, which made legitimate scoring read as the score
+    // "randomly jumping" (2026-08-27 playtest).
+    private void OnPointDetail(Side side, FaultKind kind)
+    {
+        string who = side == Side.Player ? "YOU" : "AI";
+        string why = kind switch
+        {
+            FaultKind.DoubleBounce => "DOUBLE BOUNCE",
+            FaultKind.FailedClear => "INTO THE NET",
+            FaultKind.BodyHit => "BODY HIT",
+            _ => kind.ToString().ToUpper(),
+        };
+        ShowTemporary($"POINT: {who} — {why}");
+    }
+
+    private void OnServeLet(Side server)
+    {
+        ShowTemporary(server == Side.Player ? "FAULT SERVE — SERVE AGAIN" : "AI FAULT SERVE — AI SERVES AGAIN");
+    }
+
+    private void OnMatchReset()
+    {
+        ShowIdleState();
+    }
+
+    private void OnPauseChanged(bool paused)
+    {
+        if (statusText == null) return;
+        if (temporaryStatusCoroutine != null)
+        {
+            StopCoroutine(temporaryStatusCoroutine);
+            temporaryStatusCoroutine = null;
+        }
+        statusText.text = paused ? "PAUSED — (B) RESET MATCH · (MENU) RESUME" : persistentStatus;
+    }
+
+    private void ShowTemporary(string message)
+    {
+        if (pauseController != null && pauseController.IsPaused) return;
+        if (temporaryStatusCoroutine != null) StopCoroutine(temporaryStatusCoroutine);
+        temporaryStatusCoroutine = StartCoroutine(ShowTemporaryStatus(message));
     }
 
     // Difficulty flashes on the status line for a moment, then the serve

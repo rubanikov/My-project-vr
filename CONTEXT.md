@@ -47,7 +47,14 @@ Racket-ball contact. The player's hit velocity is computed from the real swing; 
 The ball touching the AI's body during a live rally (any Last Touch). Always a point to the player. Asymmetric by design: the player's body is untracked, so no body rule applies to them.
 
 **Fault**:
-Ends the rally, awards the point, fires the moment it happens (not at next touch). The faults: second floor Bounce before the return (point to Last Touch side); a shot floor-bouncing on the hitter's own Half without clearing the Net (point to the opponent); a Body Hit (point to the player).
+Ends the rally, awards the point, fires the moment it happens (not at next touch). The faults: second floor Bounce before the return (point to Last Touch side); a shot floor-bouncing on the hitter's own Half without clearing the Net (point to the opponent); a Body Hit (point to the player). Faults during the between-rally pause are void.
+
+**Let**:
+A Serve (the rally's first hit) that fails to clear the Net. No point — the same side serves again.
+_Avoid_: Serve fault (as a scoring event), mulligan
+
+**Pause**:
+The frozen game state toggled by the left controller's menu button. While paused, B resets the match to idle.
 
 **Toss**:
 Releasing the held ball from the left hand with inherited hand velocity. Scoring-neutral; the serve's first half.

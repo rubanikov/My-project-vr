@@ -53,23 +53,48 @@ public class PadelRallyRuleTests
     }
 
     [Test]
-    public void FirstBounceOnOwnHalfIsFailedClear()
+    public void ServeFailingToClearIsALetNotAPoint()
     {
-        rule.RegisterHit(Side.Player);
-        FaultResult? fault = rule.RegisterFloorBounce(Side.Player); // never crossed the net
+        rule.RegisterHit(Side.Player); // the serve — first hit of the rally
+        FaultResult? fault = rule.RegisterFloorBounce(Side.Player);
         Assert.IsNotNull(fault);
-        Assert.AreEqual(Side.AI, fault.Value.PointTo);
-        Assert.AreEqual(FaultKind.FailedClear, fault.Value.Kind);
+        Assert.AreEqual(FaultKind.ServeLet, fault.Value.Kind);
+        Assert.AreEqual(Side.Player, fault.Value.PointTo); // side that serves again
     }
 
     [Test]
-    public void FailedClearWorksForAiToo()
+    public void AiServeFailingToClearIsALetToo()
     {
         rule.RegisterHit(Side.AI);
         FaultResult? fault = rule.RegisterFloorBounce(Side.AI);
         Assert.IsNotNull(fault);
-        Assert.AreEqual(Side.Player, fault.Value.PointTo);
+        Assert.AreEqual(FaultKind.ServeLet, fault.Value.Kind);
+        Assert.AreEqual(Side.AI, fault.Value.PointTo);
+    }
+
+    [Test]
+    public void MidRallyFailedClearStillCostsThePoint()
+    {
+        rule.RegisterHit(Side.Player);              // serve
+        Assert.IsNull(rule.RegisterFloorBounce(Side.AI)); // legal
+        rule.RegisterHit(Side.AI);                  // return
+        Assert.IsNull(rule.RegisterFloorBounce(Side.Player));
+        rule.RegisterHit(Side.Player);              // third hit — not a serve
+        FaultResult? fault = rule.RegisterFloorBounce(Side.Player); // into the net
+        Assert.IsNotNull(fault);
         Assert.AreEqual(FaultKind.FailedClear, fault.Value.Kind);
+        Assert.AreEqual(Side.AI, fault.Value.PointTo);
+    }
+
+    [Test]
+    public void ServeDoubleBounceOnReceiverSideStillCountsNormally()
+    {
+        rule.RegisterHit(Side.Player);              // serve
+        Assert.IsNull(rule.RegisterFloorBounce(Side.AI)); // cleared the net
+        FaultResult? fault = rule.RegisterFloorBounce(Side.AI); // unreturned
+        Assert.IsNotNull(fault);
+        Assert.AreEqual(FaultKind.DoubleBounce, fault.Value.Kind);
+        Assert.AreEqual(Side.Player, fault.Value.PointTo);
     }
 
     [Test]

@@ -44,8 +44,11 @@ public class MatchController : MonoBehaviour
 
     public event Action MatchStarted;
     public event Action<Side, int, int> PointScored; // (side, playerScore, aiScore)
+    public event Action<Side, FaultKind> PointDetail; // who won the point and why (for the scoreboard)
+    public event Action<Side> ServeLetOccurred; // serve didn't clear — same side serves again, no point
     public event Action<Side> ServeChanged;
     public event Action<Side> MatchEnded; // winner
+    public event Action MatchReset;
 
     private Coroutine rallyFlowCoroutine;
 
@@ -95,7 +98,59 @@ public class MatchController : MonoBehaviour
     private void OnFault(Side pointGoesTo, FaultKind kind)
     {
         if (!MatchInProgress) return;
+
+        // A point was just scored and the next serve is pending — anything
+        // the dead ball does in that window (including someone poking it
+        // with a racket, reviving the rally, and instantly re-faulting) must
+        // not score. This was one source of the "score randomly jumps"
+        // playtest report (2026-08-27).
+        if (rallyFlowCoroutine != null) return;
+
+        if (kind == FaultKind.ServeLet)
+        {
+            // Serve didn't clear the net: no point, same side serves again.
+            ServeLetOccurred?.Invoke(pointGoesTo);
+            rallyFlowCoroutine = StartCoroutine(ReServeAfterPause());
+            return;
+        }
+
         AwardPoint(pointGoesTo);
+        PointDetail?.Invoke(pointGoesTo, kind);
+    }
+
+    private IEnumerator ReServeAfterPause()
+    {
+        yield return new WaitForSeconds(1f);
+
+        ballFaultTracker?.ResetRally();
+        ServeChanged?.Invoke(ServingSide);
+
+        if (ServingSide == Side.Player)
+        {
+            ResetBall();
+        }
+        else if (aiOpponent != null)
+        {
+            aiOpponent.BeginServe();
+        }
+        rallyFlowCoroutine = null;
+    }
+
+    // Full reset back to the pre-match idle state (pause menu's B button).
+    public void ResetMatch()
+    {
+        if (rallyFlowCoroutine != null)
+        {
+            StopCoroutine(rallyFlowCoroutine);
+            rallyFlowCoroutine = null;
+        }
+        PlayerScore = 0;
+        AIScore = 0;
+        MatchInProgress = false;
+        ServingSide = Side.Player;
+        ballFaultTracker?.ResetRally();
+        ResetBall();
+        MatchReset?.Invoke();
     }
 
     private void AwardPoint(Side side)

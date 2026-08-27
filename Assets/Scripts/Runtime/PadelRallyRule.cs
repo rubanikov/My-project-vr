@@ -18,6 +18,12 @@ public enum FaultKind
     DoubleBounce,
     FailedClear,
     BodyHit,
+    // The SERVE (first hit of a rally) failing to clear the net is a let,
+    // not a point: PointTo carries the side that serves AGAIN, and no score
+    // is awarded (2026-08-27, user: "if the player serving does not hit the
+    // ball ... let him serve again" — also kills the accidental-touch point
+    // drain when the ball resets right in front of the player's racket).
+    ServeLet,
 }
 
 public readonly struct FaultResult
@@ -36,12 +42,14 @@ public class PadelRallyRule
 {
     public Side? LastTouch { get; private set; }
     public int FloorBounceCount { get; private set; }
+    public int HitCount { get; private set; }
     public bool RallyLive { get; private set; }
 
     public void RegisterHit(Side side)
     {
         LastTouch = side;
         FloorBounceCount = 0;
+        HitCount++;
         RallyLive = true;
     }
 
@@ -53,6 +61,12 @@ public class PadelRallyRule
 
         if (FloorBounceCount == 1 && bounceHalf == LastTouch.Value)
         {
+            // The serve (a rally's very first hit) gets a mulligan: a let,
+            // re-served by the same side, instead of a point.
+            if (HitCount == 1)
+            {
+                return EndRally(LastTouch.Value, FaultKind.ServeLet);
+            }
             return EndRally(Opponent(LastTouch.Value), FaultKind.FailedClear);
         }
         if (FloorBounceCount > 1)
@@ -72,6 +86,7 @@ public class PadelRallyRule
     {
         LastTouch = null;
         FloorBounceCount = 0;
+        HitCount = 0;
         RallyLive = false;
     }
 
