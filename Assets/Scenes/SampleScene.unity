@@ -394,7 +394,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6034691395237457141, guid: 1c278c4508d81314b8f5e687cd881b8f, type: 3}
       propertyPath: m_LocalRotation.y
-      value: -0.7071068
+      value: 0.7071068
       objectReference: {fileID: 0}
     - target: {fileID: 6034691395237457141, guid: 1c278c4508d81314b8f5e687cd881b8f, type: 3}
       propertyPath: m_LocalRotation.z
@@ -1583,6 +1583,7 @@ GameObject:
   - component: {fileID: 948571793}
   - component: {fileID: 948571792}
   - component: {fileID: 948571797}
+  - component: {fileID: 948571798}
   m_Layer: 0
   m_Name: AIOpponent
   m_TagString: Untagged
@@ -1738,6 +1739,21 @@ MonoBehaviour:
     material: {fileID: 2100000, guid: 470a317745aae734094de4293e7b3996, type: 2}
   - name: Gunmetal
     material: {fileID: 2100000, guid: 958630877a213e54294048b925bb5762, type: 2}
+--- !u!114 &948571798
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 948571791}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 49ee345b0bcdfed44811c96beeca819e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::AIHoverVisuals
+  glowMaterial: {fileID: 2100000, guid: 03f5795db9cfc0949826e94ae1bf6a33, type: 2}
+  floorY: 0
+  discRadius: 0.45
 --- !u!1 &996291160
 GameObject:
   m_ObjectHideFlags: 0

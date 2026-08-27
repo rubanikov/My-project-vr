@@ -100,6 +100,12 @@ public class AIOpponent : MonoBehaviour
     private float swingDirection = 1f;
     private const float SwingDuration = 0.45f;
 
+    // The shot fires when the swing visually sweeps THROUGH the ball, not the
+    // instant the ball is in reach (2026-08-27 playtest: "the robot movement
+    // does not match the hit"). 0.55 = the sweep-through point of the swing.
+    private bool shotPending;
+    private const float ShotContactProgress = 0.55f;
+
     // The procedural swing arm (BuildArm): torso yaw carries the robot
     // visual, shoulder sweeps the arm, the hand socket snaps the wrist. The
     // torso and shoulder rest at identity; the socket's rest is captured at
@@ -224,12 +230,27 @@ public class AIOpponent : MonoBehaviour
             MoveToIntercept();
             FaceBall();
             TryStrike();
+            FirePendingShot();
         }
         else
         {
+            shotPending = false; // rally ended or turn changed mid-wind-up
             DodgeOrGoHome();
             FacePlayerSide();
         }
+    }
+
+    // The strike is armed by TryStrike and released here, when the swing
+    // animation reaches its sweep-through moment — so the ball leaves the
+    // racket exactly when the arm looks like it hits. A swing that already
+    // finished (or was mid-flight past the contact point) fires immediately.
+    private void FirePendingShot()
+    {
+        if (!shotPending) return;
+        float progress = swingTimer > 0f ? 1f - swingTimer / SwingDuration : 1f;
+        if (progress < ShotContactProgress) return;
+        shotPending = false;
+        PlayShot();
     }
 
     private void MoveToIntercept()
@@ -277,9 +298,10 @@ public class AIOpponent : MonoBehaviour
         }
 
         bool canReach = horizontal <= strikeRange && ball.position.y <= reachHeight;
-        if (canReach && currentMissOffset == 0f)
+        if (canReach && currentMissOffset == 0f && !shotPending)
         {
-            PlayShot();
+            BeginSwing(Vector3.Dot(toBall, transform.right) >= 0f ? 1f : -1f);
+            shotPending = true; // released by FirePendingShot at the sweep-through
         }
         // With a whiff offset active the AI stands slightly off-line and the
         // started swing simply cuts through air — a believable miss.
@@ -334,10 +356,18 @@ public class AIOpponent : MonoBehaviour
         ball.isKinematic = true;
 
         float elapsed = 0f;
+        bool swingStarted = false;
         while (elapsed < serveWindupSeconds)
         {
             ball.position = transform.position + transform.rotation * new Vector3(0.35f, 0.15f, 0.35f);
             elapsed += Time.deltaTime;
+            // Start the swing early enough that the launch below lands on its
+            // sweep-through, same as rally shots.
+            if (!swingStarted && elapsed >= serveWindupSeconds - SwingDuration * ShotContactProgress)
+            {
+                BeginSwing(1f);
+                swingStarted = true;
+            }
             yield return null;
         }
 
