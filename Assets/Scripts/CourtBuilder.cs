@@ -21,6 +21,7 @@ public class CourtBuilder : MonoBehaviour
     // half mirrors it virtually beyond the wall. Court depth is therefore
     // twice the Guardian depth, centered on the net.
     public float NetZ { get; private set; }
+    public float CenterX { get; private set; } // court x-center = play area x-center
     public float HalfDepthPerSide { get; private set; } // depth of each half (= full Guardian depth)
     public float CourtMinZ => NetZ - HalfDepthPerSide;  // far wall behind the AI
     public float CourtMaxZ => NetZ + HalfDepthPerSide;  // wall behind the player
@@ -47,7 +48,7 @@ public class CourtBuilder : MonoBehaviour
         "Switched to a plain 4-wall rectangular prism: flush corners, no gaps. Varied bounce " +
         "geometry (angled panels, polygon inserts) can be added later as objects attached to " +
         "these flat walls, rather than baked into the walls themselves.")]
-    [SerializeField] private float wallHeight = 2.5f;
+    [SerializeField] private float wallHeight = 4f; // raised to ceilingHeight 2026-08-26 (user: "move the walls up to the ceiling") — the invisible extension band auto-skips when the band is zero
     [SerializeField] private float wallThickness = 0.15f;
 
     [Header("Materials (optional — defaults to Unity's built-in material if left empty)")]
@@ -70,22 +71,34 @@ public class CourtBuilder : MonoBehaviour
     private IEnumerator BuildWhenBoundaryReady()
     {
         Vector3 halfExtents = GetFallbackHalfExtents();
+        Vector3 playAreaCenter = Vector3.zero;
+        bool usedRealBoundary = false;
         float deadline = Time.unscaledTime + boundaryWaitTimeoutSeconds;
 
         while (Time.unscaledTime < deadline)
         {
-            if (TryGetPlayAreaHalfExtents(out Vector3 realHalfExtents))
+            if (TryGetPlayArea(out Vector3 realCenter, out Vector3 realHalfExtents))
             {
+                playAreaCenter = realCenter;
                 halfExtents = realHalfExtents;
+                usedRealBoundary = true;
                 break;
             }
             yield return null;
         }
 
-        // The net sits at the front edge of the physical play area; the court
-        // is symmetric around it, each half as deep as the whole Guardian area.
+        Debug.Log($"[CourtBuilder] Building court. realBoundary={usedRealBoundary}, " +
+            $"playAreaCenter={playAreaCenter}, halfExtents={halfExtents}");
+
+        // The court is CENTERED ON THE PLAY AREA, not on where the player
+        // happened to stand at launch (2026-08-26 fix: the world origin is
+        // the headset's recenter point, so a player starting near the corner
+        // of a large room previously got a court planted around themselves
+        // with most of their play area outside it). The net sits at the play
+        // area's front edge; the AI's half mirrors the player's beyond it.
         HalfExtents = halfExtents;
-        NetZ = -halfExtents.z;
+        CenterX = playAreaCenter.x;
+        NetZ = playAreaCenter.z - halfExtents.z;
         HalfDepthPerSide = halfExtents.z * 2f;
         var courtHalf = new Vector3(halfExtents.x, 0f, HalfDepthPerSide);
 
@@ -100,24 +113,49 @@ public class CourtBuilder : MonoBehaviour
 
     private Vector3 GetFallbackHalfExtents() => new Vector3(fallbackHalfWidth, 0f, fallbackHalfDepth);
 
-    // OVRBoundary reports 0 (or is unavailable) until the OpenXR session is
-    // fully running — true for both "no headset/Simulator at all" (plain
-    // Editor Play mode) and "headset present but session still starting up".
-    // Either way, treat it as "not ready yet" and let the caller keep polling
-    // or fall back to a safe default.
-    private bool TryGetPlayAreaHalfExtents(out Vector3 halfExtents)
+    // Primary source: the play area's corner GEOMETRY, which carries both its
+    // size AND its position in tracking space (Meta docs: GetGeometry returns
+    // floor-level points "in local tracking space"). GetDimensions alone —
+    // the previous implementation — only gives size, silently centering the
+    // court on the player instead of the room. Falls back to dimensions-only
+    // (centered on origin) if geometry is unavailable. OVRBoundary reports
+    // nothing until the OpenXR session is fully running, so the caller polls.
+    private bool TryGetPlayArea(out Vector3 center, out Vector3 halfExtents)
     {
         const float minSaneDimension = 0.5f;
-        if (OVRManager.boundary != null)
+        center = Vector3.zero;
+        halfExtents = default;
+        if (OVRManager.boundary == null) return false;
+
+        Vector3[] points = OVRManager.boundary.GetGeometry(OVRBoundary.BoundaryType.PlayArea);
+        if (points != null && points.Length >= 3)
         {
-            Vector3 dimensions = OVRManager.boundary.GetDimensions(OVRBoundary.BoundaryType.PlayArea);
-            if (dimensions.x > minSaneDimension && dimensions.z > minSaneDimension)
+            float minX = float.MaxValue, maxX = float.MinValue;
+            float minZ = float.MaxValue, maxZ = float.MinValue;
+            foreach (Vector3 p in points)
             {
-                halfExtents = new Vector3(dimensions.x * 0.5f, 0f, dimensions.z * 0.5f);
+                minX = Mathf.Min(minX, p.x);
+                maxX = Mathf.Max(maxX, p.x);
+                minZ = Mathf.Min(minZ, p.z);
+                maxZ = Mathf.Max(maxZ, p.z);
+            }
+            float halfX = (maxX - minX) * 0.5f;
+            float halfZ = (maxZ - minZ) * 0.5f;
+            if (halfX * 2f > minSaneDimension && halfZ * 2f > minSaneDimension)
+            {
+                center = new Vector3((minX + maxX) * 0.5f, 0f, (minZ + maxZ) * 0.5f);
+                halfExtents = new Vector3(halfX, 0f, halfZ);
                 return true;
             }
         }
-        halfExtents = default;
+
+        Vector3 dimensions = OVRManager.boundary.GetDimensions(OVRBoundary.BoundaryType.PlayArea);
+        if (dimensions.x > minSaneDimension && dimensions.z > minSaneDimension)
+        {
+            Debug.Log("[CourtBuilder] Play area geometry unavailable; using dimensions only (court centered on player).");
+            halfExtents = new Vector3(dimensions.x * 0.5f, 0f, dimensions.z * 0.5f);
+            return true;
+        }
         return false;
     }
 
@@ -127,7 +165,7 @@ public class CourtBuilder : MonoBehaviour
         floor.name = "CourtFloor";
         floor.transform.SetParent(transform, false);
         floor.transform.localScale = new Vector3(courtHalf.x * 2f, 0.1f, courtHalf.z * 2f);
-        floor.transform.localPosition = new Vector3(0f, -0.05f, centerZ);
+        floor.transform.localPosition = new Vector3(CenterX, -0.05f, centerZ);
         ApplyMaterial(floor, floorMaterial);
     }
 
@@ -138,13 +176,13 @@ public class CourtBuilder : MonoBehaviour
         float fullDepth = courtHalf.z * 2f;
         float halfHeight = wallHeight * 0.5f;
 
-        BuildWall("CourtWall_North", new Vector3(0f, halfHeight, centerZ + courtHalf.z),
+        BuildWall("CourtWall_North", new Vector3(CenterX, halfHeight, centerZ + courtHalf.z),
             Quaternion.identity, new Vector3(fullWidth, wallHeight, wallThickness));
-        BuildWall("CourtWall_South", new Vector3(0f, halfHeight, centerZ - courtHalf.z),
+        BuildWall("CourtWall_South", new Vector3(CenterX, halfHeight, centerZ - courtHalf.z),
             Quaternion.Euler(0f, 180f, 0f), new Vector3(fullWidth, wallHeight, wallThickness));
-        BuildWall("CourtWall_East", new Vector3(courtHalf.x, halfHeight, centerZ),
+        BuildWall("CourtWall_East", new Vector3(CenterX + courtHalf.x, halfHeight, centerZ),
             Quaternion.Euler(0f, 90f, 0f), new Vector3(fullDepth, wallHeight, wallThickness));
-        BuildWall("CourtWall_West", new Vector3(-courtHalf.x, halfHeight, centerZ),
+        BuildWall("CourtWall_West", new Vector3(CenterX - courtHalf.x, halfHeight, centerZ),
             Quaternion.Euler(0f, -90f, 0f), new Vector3(fullDepth, wallHeight, wallThickness));
     }
 
@@ -168,7 +206,7 @@ public class CourtBuilder : MonoBehaviour
         net.name = "CourtNet";
         net.transform.SetParent(transform, false);
         net.transform.localScale = new Vector3(courtHalf.x * 2f, netHeight, 0.04f);
-        net.transform.localPosition = new Vector3(0f, netHeight * 0.5f, netZ);
+        net.transform.localPosition = new Vector3(CenterX, netHeight * 0.5f, netZ);
         ApplyMaterial(net, netMaterial != null ? netMaterial : wallMaterial);
     }
 
@@ -180,7 +218,7 @@ public class CourtBuilder : MonoBehaviour
         ceiling.name = "CourtCeiling";
         ceiling.transform.SetParent(transform, false);
         ceiling.transform.localScale = new Vector3(courtHalf.x * 2f, 0.1f, courtHalf.z * 2f);
-        ceiling.transform.localPosition = new Vector3(0f, ceilingHeight + 0.05f, centerZ);
+        ceiling.transform.localPosition = new Vector3(CenterX, ceilingHeight + 0.05f, centerZ);
         ApplyMaterial(ceiling, ceilingMaterial != null ? ceilingMaterial : wallMaterial);
     }
 
@@ -194,13 +232,13 @@ public class CourtBuilder : MonoBehaviour
         float fullWidth = courtHalf.x * 2f;
         float fullDepth = courtHalf.z * 2f;
 
-        BuildInvisiblePanel("CourtWallExt_North", new Vector3(0f, bandCenterY, centerZ + courtHalf.z),
+        BuildInvisiblePanel("CourtWallExt_North", new Vector3(CenterX, bandCenterY, centerZ + courtHalf.z),
             new Vector3(fullWidth, bandHeight, wallThickness));
-        BuildInvisiblePanel("CourtWallExt_South", new Vector3(0f, bandCenterY, centerZ - courtHalf.z),
+        BuildInvisiblePanel("CourtWallExt_South", new Vector3(CenterX, bandCenterY, centerZ - courtHalf.z),
             new Vector3(fullWidth, bandHeight, wallThickness));
-        BuildInvisiblePanel("CourtWallExt_East", new Vector3(courtHalf.x, bandCenterY, centerZ),
+        BuildInvisiblePanel("CourtWallExt_East", new Vector3(CenterX + courtHalf.x, bandCenterY, centerZ),
             new Vector3(wallThickness, bandHeight, fullDepth));
-        BuildInvisiblePanel("CourtWallExt_West", new Vector3(-courtHalf.x, bandCenterY, centerZ),
+        BuildInvisiblePanel("CourtWallExt_West", new Vector3(CenterX - courtHalf.x, bandCenterY, centerZ),
             new Vector3(wallThickness, bandHeight, fullDepth));
     }
 

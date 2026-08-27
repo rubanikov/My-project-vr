@@ -1068,7 +1068,7 @@ MonoBehaviour:
   ceilingHeight: 4
   netMaterial: {fileID: 2100000, guid: ee29bc69c2545fd4191bd085e308e2ff, type: 2}
   ceilingMaterial: {fileID: 0}
-  wallHeight: 2.5
+  wallHeight: 4
   wallThickness: 0.15
   wallMaterial: {fileID: 2100000, guid: 36eca442a220ea64196e43726ed7317c, type: 2}
   floorMaterial: {fileID: 2100000, guid: 1ab738d7d235c1c48a8de97b8c5311d7, type: 2}
@@ -1121,6 +1121,7 @@ MonoBehaviour:
   ball: {fileID: 2064836822}
   ballRenderer: {fileID: 2064836821}
   aiOpponent: {fileID: 948571792}
+  courtBuilder: {fileID: 493433660}
   ballRestPosition: {x: 0, y: 1, z: 0.4}
   betweenRallyPauseSeconds: 1.5
   playerWinFlashColor: {r: 1, g: 1, b: 1, a: 1}

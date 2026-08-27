@@ -78,6 +78,7 @@ public class AIOpponent : MonoBehaviour
     private float halfWidth = 2.2f;
     private float halfDepth = 2.5f;
     private float netZ;
+    private float centerX;
     private Vector3 homePosition;
 
     private float? interceptX;
@@ -158,7 +159,8 @@ public class AIOpponent : MonoBehaviour
         halfWidth = Mathf.Max(halfExtents.x - 0.3f, 0.5f);
         halfDepth = courtBuilder.HalfDepthPerSide;
         netZ = courtBuilder.NetZ;
-        homePosition = new Vector3(0f, baselineY, netZ - halfDepth * 0.6f);
+        centerX = courtBuilder.CenterX;
+        homePosition = new Vector3(centerX, baselineY, netZ - halfDepth * 0.6f);
         transform.position = homePosition;
     }
 
@@ -264,7 +266,7 @@ public class AIOpponent : MonoBehaviour
     private void PlayShot()
     {
         Vector3 target = new Vector3(
-            Random.Range(-halfWidth * 0.55f, halfWidth * 0.55f),
+            centerX + Random.Range(-halfWidth * 0.55f, halfWidth * 0.55f),
             0f,
             netZ + Random.Range(halfDepth * 0.3f, halfDepth * 0.75f));
 
@@ -355,7 +357,7 @@ public class AIOpponent : MonoBehaviour
 
     private void MoveTowards(Vector3 target)
     {
-        target.x = Mathf.Clamp(target.x, -halfWidth, halfWidth);
+        target.x = Mathf.Clamp(target.x, centerX - halfWidth, centerX + halfWidth);
         target.z = Mathf.Clamp(target.z, netZ - halfDepth + 0.4f, netZ - 0.6f);
         target.y = baselineY;
         transform.position = Vector3.MoveTowards(
@@ -391,7 +393,9 @@ public class AIOpponent : MonoBehaviour
             ball.position, ball.linearVelocity, Physics.gravity.y, homePosition.z,
             out Vector3 predicted, out _);
 
-        interceptX = found ? Mathf.Clamp(predicted.x, -halfWidth, halfWidth) : (float?)null;
+        interceptX = found
+            ? Mathf.Clamp(predicted.x, centerX - halfWidth, centerX + halfWidth)
+            : (float?)null;
     }
 
     // The Body Hit sensor: this GameObject's trigger capsule. Any live-rally

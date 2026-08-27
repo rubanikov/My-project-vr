@@ -24,8 +24,9 @@ public class MatchController : MonoBehaviour
     [SerializeField] private Transform ball;
     [SerializeField] private Renderer ballRenderer;
     [SerializeField] private AIOpponent aiOpponent;
+    [SerializeField] private CourtBuilder courtBuilder;
 
-    [Header("Ball reset")]
+    [Header("Ball reset (recomputed to the player's half-center once the court is built)")]
     [SerializeField] private Vector3 ballRestPosition = new Vector3(0f, 1f, 0.4f);
 
     [Header("Rally flow")]
@@ -51,11 +52,23 @@ public class MatchController : MonoBehaviour
     private void OnEnable()
     {
         if (ballFaultTracker != null) ballFaultTracker.Fault += OnFault;
+        if (courtBuilder != null) courtBuilder.CourtBuilt += OnCourtBuilt;
     }
 
     private void OnDisable()
     {
         if (ballFaultTracker != null) ballFaultTracker.Fault -= OnFault;
+        if (courtBuilder != null) courtBuilder.CourtBuilt -= OnCourtBuilt;
+    }
+
+    // The pedestal follows the court: middle of the player's half, wherever
+    // the play area actually is (the court is no longer centered on the
+    // launch position).
+    private void OnCourtBuilt(Vector3 halfExtents)
+    {
+        ballRestPosition = new Vector3(
+            courtBuilder.CenterX, 1f, courtBuilder.NetZ + courtBuilder.HalfDepthPerSide * 0.5f);
+        ResetBall();
     }
 
     // Called from PlayerRacket's collision handler on every racket-ball hit —
