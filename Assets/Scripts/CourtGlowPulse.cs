@@ -29,6 +29,7 @@ public class CourtGlowPulse : MonoBehaviour
 
     private Material sharedInstance;
     private Coroutine pulseCoroutine;
+    private readonly List<GameObject> strips = new List<GameObject>();
 
     private void OnEnable()
     {
@@ -52,11 +53,22 @@ public class CourtGlowPulse : MonoBehaviour
 
     private void OnCourtBuilt(Vector3 halfExtents)
     {
-        if (sharedInstance != null) return;
+        if (sharedInstance == null)
+        {
+            sharedInstance = trimMaterial != null ? new Material(trimMaterial) : null;
+            if (sharedInstance == null) return;
+            sharedInstance.SetColor("_BaseColor", idleColor);
+        }
 
-        sharedInstance = trimMaterial != null ? new Material(trimMaterial) : null;
-        if (sharedInstance == null) return;
-        sharedInstance.SetColor("_BaseColor", idleColor);
+        // A court rebuild (boundary realign, recenter, fallback upgrade)
+        // destroys every child of the Court object — these strips included —
+        // and the new court may be somewhere else entirely. Rebuild the trims
+        // against the fresh geometry on every CourtBuilt, not just the first.
+        foreach (GameObject strip in strips)
+        {
+            if (strip != null) Destroy(strip);
+        }
+        strips.Clear();
 
         float cx = courtBuilder.CenterX;
         float netZ = courtBuilder.NetZ;
@@ -95,6 +107,7 @@ public class CourtGlowPulse : MonoBehaviour
         strip.transform.position = position;
         strip.transform.localScale = scale;
         strip.GetComponent<Renderer>().sharedMaterial = sharedInstance;
+        strips.Add(strip);
     }
 
     private void OnPointDetail(Side side, FaultKind kind)
