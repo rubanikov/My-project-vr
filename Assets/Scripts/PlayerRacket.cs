@@ -101,8 +101,9 @@ public class PlayerRacket : MonoBehaviour
         // Default physics runs at 50Hz (0.02s), well under Quest 2's ~72-90Hz
         // display/tracking refresh — a real hand swing updates controllerAnchor
         // faster than FixedUpdate was sampling it, coarsening exactly the kind
-        // of fast, precise contact this component depends on.
-        Time.fixedDeltaTime = 1f / 90f;
+        // of fast, precise contact this component depends on. GameMenu rescales
+        // this by the chosen Game Speed (steps stay 90 per real second).
+        Time.fixedDeltaTime = BallPhysicsTuning.BaseFixedDeltaTime;
 
         if (ballSounds == null && ball != null)
         {
@@ -184,11 +185,15 @@ public class PlayerRacket : MonoBehaviour
         // Separating already (e.g. a graze PhysX resolved fine) — leave it alone.
         if (approach >= 0f) return 0f;
 
+        // Everything here is in game-time units. Under Game Speed dilation the
+        // swing velocity is measured over the SCALED fixed step, so the hand's
+        // real motion reads proportionally faster in a slowed world — the
+        // dilation asymmetry the setting exists for (see ADR 0001). No extra
+        // speed scaling belongs in this math.
         Vector3 reflected = relativeVelocity - (1f + faceRestitution) * approach * normal;
-        Vector3 outgoing = (racketVelocity * hitPower + reflected) * BallPhysicsTuning.SpeedMultiplier;
+        Vector3 outgoing = racketVelocity * hitPower + reflected;
 
-        ball.linearVelocity = Vector3.ClampMagnitude(
-            outgoing, maxBallSpeed * BallPhysicsTuning.SpeedMultiplier);
+        ball.linearVelocity = Vector3.ClampMagnitude(outgoing, maxBallSpeed);
         return -approach;
     }
 

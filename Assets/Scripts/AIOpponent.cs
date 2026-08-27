@@ -21,15 +21,21 @@ public enum AIDifficulty
 // show animations... it hits without moving the hands"): the body now turns
 // to face the ball, the swing STARTS while the ball is still approaching
 // (wind-up, so contact lands mid-swing instead of the ball leaving before
-// any motion), the racket sweeps horizontally on the ball's side, and balls
-// above reach height simply fly over its head.
+// any motion), and balls above reach height simply fly over its head.
+// Extended 2026-08-27 (rules grill, "the racket is not snapped to hand...
+// no hip and arm, wrist movement"): the racket now sits in a HandSocket at
+// the end of a runtime-built procedural arm (torso→shoulder→wrist chain,
+// the robot mesh is unrigged), and a swing carries hip yaw, shoulder arc,
+// and a late wrist snap — see CONTEXT.md "AI Swing".
 //
 // Difficulty (same playtest: "make it a bit easier, or add difficulty
 // options"): Easy/Normal/Hard presets over speed, reaction, reach, shot
 // pace, and a per-turn whiff chance (the AI deliberately lines up slightly
 // off and swings through the miss — a believable whiff, not a freeze).
-// Cycled with the right controller's A button, persisted to PlayerPrefs,
-// announced on the Scoreboard. Defaults to Easy.
+// Stepped from the Game Menu's DIFFICULTY row (2026-08-27 — supersedes the
+// in-game A cycle, whose double-booking with the menu's A made changes
+// silent), persisted to PlayerPrefs, announced on the Scoreboard. Defaults
+// to Easy.
 public class AIOpponent : MonoBehaviour
 {
     [Header("References")]
@@ -46,6 +52,8 @@ public class AIOpponent : MonoBehaviour
     [SerializeField] private float baselineY = 1f;
     [Tooltip("Balls above this height fly over the AI's head — it cannot reach them.")]
     [SerializeField] private float reachHeight = 2.2f;
+    [Tooltip("Shoulder joint of the runtime-built swing arm, local to the robot root.")]
+    [SerializeField] private Vector3 shoulderLocalPosition = new Vector3(0.22f, 0.35f, 0.05f);
 
     [Header("Movement")]
     [SerializeField] private float dodgeRadius = 0.7f;
@@ -91,14 +99,22 @@ public class AIOpponent : MonoBehaviour
     private float swingTimer;
     private float swingDirection = 1f;
     private const float SwingDuration = 0.45f;
-    private Quaternion racketRestRotation;
+
+    // The procedural swing arm (BuildArm): torso yaw carries the robot
+    // visual, shoulder sweeps the arm, the hand socket snaps the wrist. The
+    // torso and shoulder rest at identity; the socket's rest is captured at
+    // build time (it adopts the racket's authored scene pose).
+    private Transform torsoPivot;
+    private Transform shoulderPivot;
+    private Transform handSocket;
+    private Quaternion handSocketRestRotation;
 
     private BallContactSounds ballSounds;
 
     private void Awake()
     {
         homePosition = new Vector3(0f, baselineY, -1.6f);
-        if (racketVisual != null) racketRestRotation = racketVisual.localRotation;
+        BuildArm();
         if (ball != null) ballSounds = ball.GetComponent<BallContactSounds>();
 
         difficulty = (AIDifficulty)PlayerPrefs.GetInt(DifficultyPrefKey, (int)AIDifficulty.Easy);
@@ -148,9 +164,11 @@ public class AIOpponent : MonoBehaviour
         }
     }
 
-    public void CycleDifficulty()
+    // Stepped by the Game Menu's DIFFICULTY row (stick up/down). Takes
+    // effect on the AI's next turn — whiff and reaction are rolled per turn.
+    public void StepDifficulty(int step)
     {
-        difficulty = (AIDifficulty)(((int)difficulty + 1) % 3);
+        difficulty = (AIDifficulty)(((int)difficulty + step % 3 + 3) % 3);
         ApplyDifficulty();
         PlayerPrefs.SetInt(DifficultyPrefKey, (int)difficulty);
         PlayerPrefs.Save();
@@ -173,12 +191,6 @@ public class AIOpponent : MonoBehaviour
 
     private void Update()
     {
-        // Gated on timeScale: while the pause menu is open, A belongs to it.
-        if (Time.timeScale > 0f && OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
-        {
-            CycleDifficulty();
-        }
-
         UpdateSwingAnimation();
         if (ball == null || serving) return;
 
@@ -274,11 +286,11 @@ public class AIOpponent : MonoBehaviour
             0f,
             netZ + Random.Range(halfDepth * 0.3f, halfDepth * 0.75f));
 
-        // The ball-speed tuning slider stretches flight time rather than
-        // scaling the solved velocity — a slower ball flies a loopier arc
-        // but still lands on the chosen target.
-        float flightTime = shotFlightTime * Random.Range(0.85f, 1.15f)
-            / BallPhysicsTuning.SpeedMultiplier;
+        // Flight time is in game-seconds — Game Speed dilation slows the
+        // whole world uniformly, so the solved arc is identical at every
+        // speed setting (ADR 0001; the old per-shot flight-time stretch
+        // solved ceiling-high arcs at low speeds and looped AI serve lets).
+        float flightTime = shotFlightTime * Random.Range(0.85f, 1.15f);
         Vector3 velocity = (target - ball.position) / flightTime
             - 0.5f * Physics.gravity * flightTime;
         velocity = Vector3.ClampMagnitude(velocity, maxShotSpeed);
@@ -430,28 +442,121 @@ public class AIOpponent : MonoBehaviour
         swingDirection = direction;
     }
 
-    // Backswing then follow-through, sweeping the racket horizontally around
-    // the BODY's vertical axis (pre-multiplied, i.e. parent space). The first
-    // version post-multiplied about the racket's own local up — which is its
-    // handle axis, so the racket just twirled invisibly in place (the user's
-    // "still shows no animation" report). Eases back to rest afterwards.
-    private void UpdateSwingAnimation()
+    // --- Procedural swing arm (2026-08-27; see CONTEXT.md "AI Swing") ---
+
+    // The robot mesh is a single unrigged blob, so the arm is built in code:
+    // TorsoPivot (hip yaw, carries the whole robot visual) → ShoulderPivot →
+    // HandSocket (wrist), with the racket parented INTO the socket so it is
+    // genuinely held. The socket is created at the racket's authored scene
+    // pose, so nothing visibly moves on startup and every pivot rotation
+    // swings the racket around the hand, not around thin air.
+    private void BuildArm()
     {
         if (racketVisual == null) return;
 
+        Transform robotVisual = null;
+        foreach (Transform child in transform)
+        {
+            if (child != racketVisual)
+            {
+                robotVisual = child;
+                break;
+            }
+        }
+
+        torsoPivot = new GameObject("TorsoPivot").transform;
+        torsoPivot.SetParent(transform, false);
+        if (robotVisual != null) robotVisual.SetParent(torsoPivot, true);
+
+        shoulderPivot = new GameObject("ShoulderPivot").transform;
+        shoulderPivot.SetParent(torsoPivot, false);
+        shoulderPivot.localPosition = shoulderLocalPosition;
+
+        handSocket = new GameObject("HandSocket").transform;
+        handSocket.SetParent(shoulderPivot, true);
+        handSocket.position = racketVisual.position;
+        handSocket.rotation = racketVisual.rotation;
+        racketVisual.SetParent(handSocket, true);
+        handSocketRestRotation = handSocket.localRotation;
+
+        BuildArmVisual();
+    }
+
+    // Tron-styled arm: a stretched capsule from shoulder to hand plus a hand
+    // sphere at the socket, sharing the racket's material. Visual only — the
+    // primitive colliders are stripped so the arm can never touch the ball.
+    private void BuildArmVisual()
+    {
+        Renderer racketRenderer = racketVisual.GetComponentInChildren<Renderer>();
+        Material armMaterial = racketRenderer != null ? racketRenderer.sharedMaterial : null;
+
+        Vector3 toHand = shoulderPivot.InverseTransformPoint(handSocket.position);
+
+        GameObject arm = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        arm.name = "ArmVisual";
+        Destroy(arm.GetComponent<Collider>());
+        arm.transform.SetParent(shoulderPivot, false);
+        arm.transform.localPosition = toHand * 0.5f;
+        arm.transform.localRotation = Quaternion.FromToRotation(Vector3.up, toHand.normalized);
+        arm.transform.localScale = new Vector3(0.07f, toHand.magnitude * 0.5f, 0.07f);
+
+        GameObject hand = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        hand.name = "HandVisual";
+        Destroy(hand.GetComponent<Collider>());
+        hand.transform.SetParent(handSocket, false);
+        hand.transform.localScale = Vector3.one * 0.09f;
+
+        if (armMaterial != null)
+        {
+            arm.GetComponent<Renderer>().sharedMaterial = armMaterial;
+            hand.GetComponent<Renderer>().sharedMaterial = armMaterial;
+        }
+    }
+
+    // Wind-up, sweep, follow-through across three joints, all pre-multiplied
+    // about the parent's vertical axis (the old single-pivot version's
+    // lesson: post-multiplying about the racket's own up — its handle axis —
+    // just twirled it invisibly in place). The hips coil first and lead the
+    // sweep, the shoulder carries the arc, and the wrist lags then snaps
+    // through contact — the standard kinetic-chain read. Eases back to rest.
+    private void UpdateSwingAnimation()
+    {
+        if (handSocket == null) return;
+
         if (swingTimer <= 0f)
         {
-            racketVisual.localRotation = Quaternion.Slerp(
-                racketVisual.localRotation, racketRestRotation, 8f * Time.deltaTime);
+            float ease = 8f * Time.deltaTime;
+            torsoPivot.localRotation = Quaternion.Slerp(
+                torsoPivot.localRotation, Quaternion.identity, ease);
+            shoulderPivot.localRotation = Quaternion.Slerp(
+                shoulderPivot.localRotation, Quaternion.identity, ease);
+            handSocket.localRotation = Quaternion.Slerp(
+                handSocket.localRotation, handSocketRestRotation, ease);
             return;
         }
 
         swingTimer -= Time.deltaTime;
         float progress = 1f - Mathf.Max(swingTimer, 0f) / SwingDuration;
-        float angle = progress < 0.3f
-            ? Mathf.Lerp(0f, -70f, progress / 0.3f)          // wind back
-            : Mathf.Lerp(-70f, 110f, (progress - 0.3f) / 0.7f); // sweep through
-        racketVisual.localRotation =
-            Quaternion.AngleAxis(angle * swingDirection, Vector3.up) * racketRestRotation;
+
+        float torso, shoulder, wrist;
+        if (progress < 0.3f)
+        {
+            float p = progress / 0.3f;
+            torso = Mathf.Lerp(0f, -25f, p);
+            shoulder = Mathf.Lerp(0f, -70f, p);
+            wrist = Mathf.Lerp(0f, -30f, p);
+        }
+        else
+        {
+            float p = (progress - 0.3f) / 0.7f;
+            torso = Mathf.Lerp(-25f, 30f, Mathf.Sin(p * Mathf.PI * 0.5f)); // hips lead: eased out
+            shoulder = Mathf.Lerp(-70f, 110f, p);
+            wrist = Mathf.Lerp(-30f, 45f, p * p);                          // wrist lags, snaps late
+        }
+
+        torsoPivot.localRotation = Quaternion.AngleAxis(torso * swingDirection, Vector3.up);
+        shoulderPivot.localRotation = Quaternion.AngleAxis(shoulder * swingDirection, Vector3.up);
+        handSocket.localRotation =
+            Quaternion.AngleAxis(wrist * swingDirection, Vector3.up) * handSocketRestRotation;
     }
 }

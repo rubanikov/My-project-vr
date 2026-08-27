@@ -14,7 +14,7 @@ public class Scoreboard : MonoBehaviour
     [SerializeField] private MatchController matchController;
     [SerializeField] private CourtBuilder courtBuilder;
     [SerializeField] private AIOpponent aiOpponent;
-    [SerializeField] private MatchPauseController pauseController;
+    [SerializeField] private GameMenu pauseController;
     [SerializeField] private AISkinSelector skinSelector;
     [Tooltip("Transparent dark material for the backing panel (must be an asset so its shader variant ships in builds).")]
     [SerializeField] private Material panelMaterial;
@@ -25,6 +25,7 @@ public class Scoreboard : MonoBehaviour
 
     private TextMesh scoreText;
     private TextMesh statusText;
+    private TextMesh warmupText;
     private string persistentStatus = "";
     private Coroutine temporaryStatusCoroutine;
 
@@ -94,6 +95,25 @@ public class Scoreboard : MonoBehaviour
             new Color(0.4f, 1f, 0.95f));
         statusText = CreateText("StatusText", new Vector3(0f, -0.24f, -0.03f), 0.03f, font,
             Color.white);
+        // Floats above the panel whenever no session is armed — an unscored
+        // rally must never masquerade as a match (2026-08-27 rules grill;
+        // see CONTEXT.md "Warm-Up").
+        warmupText = CreateText("WarmupText", new Vector3(0f, panelSize.y * 0.5f + 0.14f, -0.03f),
+            0.05f, font, new Color(1f, 0.75f, 0.25f));
+        warmupText.text = "WARM-UP";
+    }
+
+    // Polled rather than event-driven: SessionArmed flips in ArmSession,
+    // ResetMatch, and EndMatch, and a one-bool poll beats threading a new
+    // event through MatchController.
+    private void Update()
+    {
+        if (warmupText == null || matchController == null) return;
+        bool warmup = !matchController.SessionArmed;
+        if (warmupText.gameObject.activeSelf != warmup)
+        {
+            warmupText.gameObject.SetActive(warmup);
+        }
     }
 
     private TextMesh CreateText(string name, Vector3 localPosition, float characterSize, Font font, Color color)
@@ -118,7 +138,7 @@ public class Scoreboard : MonoBehaviour
     private void ShowIdleState()
     {
         SetScore(0, 0);
-        SetStatus("PRESS RIGHT TRIGGER, THEN SERVE   (A = DIFFICULTY)");
+        SetStatus("PRESS MENU TO START A MATCH");
     }
 
     // Every point announces who won it and why — instant faults are
@@ -165,7 +185,7 @@ public class Scoreboard : MonoBehaviour
             StopCoroutine(temporaryStatusCoroutine);
             temporaryStatusCoroutine = null;
         }
-        statusText.text = paused ? "PAUSED — (B) RESET MATCH · (MENU) RESUME" : persistentStatus;
+        statusText.text = paused ? "PAUSED" : persistentStatus;
     }
 
     private void ShowTemporary(string message)
@@ -176,12 +196,11 @@ public class Scoreboard : MonoBehaviour
     }
 
     // Difficulty flashes on the status line for a moment, then the serve
-    // info comes back.
+    // info comes back. Routed through ShowTemporary's pause guard: changes
+    // now happen inside the Game Menu, whose own row is the feedback there.
     private void OnDifficultyChanged(AIDifficulty difficulty)
     {
-        if (temporaryStatusCoroutine != null) StopCoroutine(temporaryStatusCoroutine);
-        temporaryStatusCoroutine = StartCoroutine(ShowTemporaryStatus(
-            $"DIFFICULTY: {difficulty.ToString().ToUpper()}"));
+        ShowTemporary($"DIFFICULTY: {difficulty.ToString().ToUpper()}");
     }
 
     private System.Collections.IEnumerator ShowTemporaryStatus(string message)
@@ -209,8 +228,8 @@ public class Scoreboard : MonoBehaviour
 
     private void OnMatchEnded(Side winner)
     {
-        SetStatus(winner == Side.Player ? "YOU WIN!  RIGHT TRIGGER FOR A REMATCH"
-            : "AI WINS.  RIGHT TRIGGER FOR A REMATCH");
+        SetStatus(winner == Side.Player ? "YOU WIN!  PRESS MENU FOR A REMATCH"
+            : "AI WINS.  PRESS MENU FOR A REMATCH");
     }
 
     private void SetScore(int playerScore, int aiScore)

@@ -16,15 +16,12 @@ public class BallFaultTracker : MonoBehaviour
     [Tooltip("Source of the net's Z position — the halves boundary. Falls back to z=0 when unwired.")]
     [SerializeField] private CourtBuilder courtBuilder;
 
-    [Header("Dead ball (a rolling ball never re-enters collision, so a second bounce may never fire)")]
-    [Tooltip("Below this speed the ball counts as dying once it has bounced.")]
-    [SerializeField] private float deadBallSpeed = 0.8f;
+    [Header("Dead ball (flat hops merge contacts, so a second bounce may never fire)")]
     [SerializeField] private float deadBallSeconds = 1f;
-    [Tooltip("Only near the floor — a slow ball at the top of its arc is alive.")]
+    [Tooltip("A ball pinned below this height after its first bounce is unreturnable at any speed.")]
     [SerializeField] private float deadBallMaxHeight = 0.35f;
 
     private readonly PadelRallyRule rule = new PadelRallyRule();
-    private Rigidbody rb;
     private float deadTime;
 
     // Fires with the side that WINS the point and why.
@@ -34,21 +31,18 @@ public class BallFaultTracker : MonoBehaviour
     public int CurrentBounceCount => rule.FloorBounceCount;
     public bool RallyLive => rule.RallyLive;
 
-    private void Awake()
-    {
-        rb = GetComponent<Rigidbody>();
-    }
-
-    // The dead-ball watchdog: a ball that settles into rolling after one
-    // legal bounce keeps floor contact, so OnCollisionEnter never reports a
-    // second bounce and the rally would hang forever (2026-08-27 playtest).
-    // A slow, low ball on a live rally for a continuous second is dead.
+    // The dead-ball watchdog: after one legal bounce, a ball that stays low
+    // never yields a clean second OnCollisionEnter — rolling keeps floor
+    // contact, and fast flat skims (1-3 m/s) re-contact before Unity counts a
+    // separation (2026-08-27 playtest, widened same day: the original version
+    // also required low SPEED, leaving skims in a blind window). A ball pinned
+    // under bounce height for a continuous second is the second Bounce, at
+    // any speed — the receiver never returned it.
     private void Update()
     {
         bool dying = rule.RallyLive
             && rule.FloorBounceCount >= 1
-            && transform.position.y < deadBallMaxHeight
-            && rb.linearVelocity.magnitude < deadBallSpeed;
+            && transform.position.y < deadBallMaxHeight;
 
         if (!dying)
         {

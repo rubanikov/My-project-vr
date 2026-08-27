@@ -19,12 +19,12 @@ using Meta.XR.ImmersiveDebugger;
 [RequireComponent(typeof(Rigidbody))]
 public class BallPhysicsTuning : MonoBehaviour
 {
-    // Global ball-speed scale (2026-08-27 user request: "slider for the
-    // speed of the ball"). Consumed by PlayerRacket (scales hit exit speed)
-    // and AIOpponent (stretches shot flight time, so aim stays true at any
-    // speed). Static so the hit paths read it without wiring; resets to 1
-    // each launch like every other tuning value here.
-    public static float SpeedMultiplier = 1f;
+    // The physics step at 1.0 Game Speed (90Hz, matching Quest 2 tracking —
+    // see PlayerRacket's rationale). GameMenu scales Time.fixedDeltaTime by
+    // its Game Speed so steps stay ~90 per REAL second at any dilation
+    // (docs/adr/0001-game-speed-is-time-dilation.md). The old SpeedMultiplier
+    // hit-velocity scale is gone — Game Speed is Time.timeScale now.
+    public const float BaseFixedDeltaTime = 1f / 90f;
 
     private Rigidbody rb;
     private PhysicsMaterial material;
@@ -33,14 +33,6 @@ public class BallPhysicsTuning : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         material = GetComponent<Collider>().material;
-        SpeedMultiplier = 1f;
-    }
-
-    [DebugMember(Category = "Ball Physics", Tweakable = true, Min = 0.4f, Max = 1.5f, DisplayName = "Ball Speed")]
-    public float BallSpeed
-    {
-        get => SpeedMultiplier;
-        set => SpeedMultiplier = value;
     }
 
     [DebugMember(Category = "Ball Physics", Tweakable = true, Min = 0f, Max = 1.3f, DisplayName = "Bounciness")]
