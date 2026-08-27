@@ -180,9 +180,10 @@ public class PlayerRacket : MonoBehaviour
         if (approach >= 0f) return 0f;
 
         Vector3 reflected = relativeVelocity - (1f + faceRestitution) * approach * normal;
-        Vector3 outgoing = racketVelocity * hitPower + reflected;
+        Vector3 outgoing = (racketVelocity * hitPower + reflected) * BallPhysicsTuning.SpeedMultiplier;
 
-        ball.linearVelocity = Vector3.ClampMagnitude(outgoing, maxBallSpeed);
+        ball.linearVelocity = Vector3.ClampMagnitude(
+            outgoing, maxBallSpeed * BallPhysicsTuning.SpeedMultiplier);
         return -approach;
     }
 

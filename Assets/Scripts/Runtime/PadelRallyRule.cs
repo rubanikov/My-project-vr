@@ -76,6 +76,17 @@ public class PadelRallyRule
         return null;
     }
 
+    // A ball that dies (rolls or rests) after a legal bounce is the same
+    // failure as a second bounce — the receiver never returned it. Reported
+    // by the tracker's low-speed watchdog rather than a floor contact,
+    // because a rolling ball never re-enters collision (2026-08-27 playtest:
+    // "the ball bounces several times and the game still goes on").
+    public FaultResult? RegisterDeadBall()
+    {
+        if (!RallyLive || LastTouch == null || FloorBounceCount < 1) return null;
+        return EndRally(LastTouch.Value, FaultKind.DoubleBounce);
+    }
+
     public FaultResult? RegisterBodyHit(Side bodySide)
     {
         if (!RallyLive || LastTouch == null) return null;

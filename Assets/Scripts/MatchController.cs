@@ -42,7 +42,13 @@ public class MatchController : MonoBehaviour
     public bool MatchInProgress { get; private set; }
     public Side ServingSide { get; private set; } = Side.Player;
 
+    // The start gate (2026-08-27 user request: a controls screen before the
+    // game and each match). Until StartScreen arms the session, racket-ball
+    // contact is inert — warm-up swings can't start a match.
+    public bool SessionArmed { get; private set; }
+
     public event Action MatchStarted;
+    public event Action BallRecovered; // escape-watchdog rescue: void rally, no point
     public event Action<Side, int, int> PointScored; // (side, playerScore, aiScore)
     public event Action<Side, FaultKind> PointDetail; // who won the point and why (for the scoreboard)
     public event Action<Side> ServeLetOccurred; // serve didn't clear — same side serves again, no point
@@ -79,9 +85,35 @@ public class MatchController : MonoBehaviour
     // after one ends.
     public void OnBallInPlay()
     {
+        if (!SessionArmed) return;
         if (!MatchInProgress)
         {
             StartMatch();
+        }
+    }
+
+    public void ArmSession()
+    {
+        SessionArmed = true;
+    }
+
+    // The escape hatch for physics gone wrong: the ball tunneled out of the
+    // court shell (the "ball disappears" playtest report, 2026-08-27). No
+    // point — void the rally and re-serve the same side, like a let.
+    public void RecoverEscapedBall()
+    {
+        if (rallyFlowCoroutine != null) return; // a reset/serve is already pending
+
+        ballFaultTracker?.ResetRally();
+        BallRecovered?.Invoke();
+
+        if (MatchInProgress)
+        {
+            rallyFlowCoroutine = StartCoroutine(ReServeAfterPause());
+        }
+        else
+        {
+            ResetBall();
         }
     }
 
@@ -147,6 +179,7 @@ public class MatchController : MonoBehaviour
         PlayerScore = 0;
         AIScore = 0;
         MatchInProgress = false;
+        SessionArmed = false; // back through the start screen
         ServingSide = Side.Player;
         ballFaultTracker?.ResetRally();
         ResetBall();
@@ -193,6 +226,7 @@ public class MatchController : MonoBehaviour
     private void EndMatch(Side winner)
     {
         MatchInProgress = false;
+        SessionArmed = false; // the rematch goes back through the start screen
         ServingSide = Side.Player; // next match starts on the player's serve
         MatchEnded?.Invoke(winner);
         StartCoroutine(FlashAndReset(winner));

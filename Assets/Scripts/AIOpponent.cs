@@ -273,7 +273,11 @@ public class AIOpponent : MonoBehaviour
             0f,
             netZ + Random.Range(halfDepth * 0.3f, halfDepth * 0.75f));
 
-        float flightTime = shotFlightTime * Random.Range(0.85f, 1.15f);
+        // The ball-speed tuning slider stretches flight time rather than
+        // scaling the solved velocity — a slower ball flies a loopier arc
+        // but still lands on the chosen target.
+        float flightTime = shotFlightTime * Random.Range(0.85f, 1.15f)
+            / BallPhysicsTuning.SpeedMultiplier;
         Vector3 velocity = (target - ball.position) / flightTime
             - 0.5f * Physics.gravity * flightTime;
         velocity = Vector3.ClampMagnitude(velocity, maxShotSpeed);

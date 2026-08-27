@@ -53,6 +53,31 @@ public class PadelRallyRuleTests
     }
 
     [Test]
+    public void DeadBallAfterOneBounceIsPointToHitter()
+    {
+        rule.RegisterHit(Side.Player);
+        Assert.IsNull(rule.RegisterFloorBounce(Side.AI)); // legal first bounce
+        FaultResult? fault = rule.RegisterDeadBall();     // then it rolls to a stop
+        Assert.IsNotNull(fault);
+        Assert.AreEqual(Side.Player, fault.Value.PointTo);
+        Assert.AreEqual(FaultKind.DoubleBounce, fault.Value.Kind);
+    }
+
+    [Test]
+    public void DeadBallBeforeAnyBounceReportsNothing()
+    {
+        rule.RegisterHit(Side.Player);
+        Assert.IsNull(rule.RegisterDeadBall());
+        Assert.IsTrue(rule.RallyLive);
+    }
+
+    [Test]
+    public void DeadBallOnDeadRallyReportsNothing()
+    {
+        Assert.IsNull(rule.RegisterDeadBall());
+    }
+
+    [Test]
     public void ServeFailingToClearIsALetNotAPoint()
     {
         rule.RegisterHit(Side.Player); // the serve — first hit of the rally

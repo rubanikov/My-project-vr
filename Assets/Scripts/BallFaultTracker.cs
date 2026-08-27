@@ -16,7 +16,16 @@ public class BallFaultTracker : MonoBehaviour
     [Tooltip("Source of the net's Z position — the halves boundary. Falls back to z=0 when unwired.")]
     [SerializeField] private CourtBuilder courtBuilder;
 
+    [Header("Dead ball (a rolling ball never re-enters collision, so a second bounce may never fire)")]
+    [Tooltip("Below this speed the ball counts as dying once it has bounced.")]
+    [SerializeField] private float deadBallSpeed = 0.8f;
+    [SerializeField] private float deadBallSeconds = 1f;
+    [Tooltip("Only near the floor — a slow ball at the top of its arc is alive.")]
+    [SerializeField] private float deadBallMaxHeight = 0.35f;
+
     private readonly PadelRallyRule rule = new PadelRallyRule();
+    private Rigidbody rb;
+    private float deadTime;
 
     // Fires with the side that WINS the point and why.
     public event Action<Side, FaultKind> Fault;
@@ -24,6 +33,35 @@ public class BallFaultTracker : MonoBehaviour
     public Side? LastTouch => rule.LastTouch;
     public int CurrentBounceCount => rule.FloorBounceCount;
     public bool RallyLive => rule.RallyLive;
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+    }
+
+    // The dead-ball watchdog: a ball that settles into rolling after one
+    // legal bounce keeps floor contact, so OnCollisionEnter never reports a
+    // second bounce and the rally would hang forever (2026-08-27 playtest).
+    // A slow, low ball on a live rally for a continuous second is dead.
+    private void Update()
+    {
+        bool dying = rule.RallyLive
+            && rule.FloorBounceCount >= 1
+            && transform.position.y < deadBallMaxHeight
+            && rb.linearVelocity.magnitude < deadBallSpeed;
+
+        if (!dying)
+        {
+            deadTime = 0f;
+            return;
+        }
+
+        deadTime += Time.deltaTime;
+        if (deadTime < deadBallSeconds) return;
+
+        deadTime = 0f;
+        Resolve(rule.RegisterDeadBall());
+    }
 
     private void OnCollisionEnter(Collision collision)
     {

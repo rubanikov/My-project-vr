@@ -39,6 +39,7 @@ public class Scoreboard : MonoBehaviour
             matchController.ServeChanged += OnServeChanged;
             matchController.MatchEnded += OnMatchEnded;
             matchController.MatchReset += OnMatchReset;
+            matchController.BallRecovered += OnBallRecovered;
         }
         if (aiOpponent != null) aiOpponent.DifficultyChanged += OnDifficultyChanged;
         if (pauseController != null) pauseController.PauseChanged += OnPauseChanged;
@@ -56,6 +57,7 @@ public class Scoreboard : MonoBehaviour
             matchController.ServeChanged -= OnServeChanged;
             matchController.MatchEnded -= OnMatchEnded;
             matchController.MatchReset -= OnMatchReset;
+            matchController.BallRecovered -= OnBallRecovered;
         }
         if (aiOpponent != null) aiOpponent.DifficultyChanged -= OnDifficultyChanged;
         if (pauseController != null) pauseController.PauseChanged -= OnPauseChanged;
@@ -113,7 +115,7 @@ public class Scoreboard : MonoBehaviour
     private void ShowIdleState()
     {
         SetScore(0, 0);
-        SetStatus("HIT THE BALL TO START — YOUR SERVE   (A = DIFFICULTY)");
+        SetStatus("PRESS RIGHT TRIGGER, THEN SERVE   (A = DIFFICULTY)");
     }
 
     // Every point announces who won it and why — instant faults are
@@ -135,6 +137,11 @@ public class Scoreboard : MonoBehaviour
     private void OnServeLet(Side server)
     {
         ShowTemporary(server == Side.Player ? "FAULT SERVE — SERVE AGAIN" : "AI FAULT SERVE — AI SERVES AGAIN");
+    }
+
+    private void OnBallRecovered()
+    {
+        ShowTemporary("BALL LOST — RE-SERVING");
     }
 
     private void OnMatchReset()
@@ -194,8 +201,8 @@ public class Scoreboard : MonoBehaviour
 
     private void OnMatchEnded(Side winner)
     {
-        SetStatus(winner == Side.Player ? "YOU WIN!  HIT THE BALL FOR A REMATCH"
-            : "AI WINS.  HIT THE BALL FOR A REMATCH");
+        SetStatus(winner == Side.Player ? "YOU WIN!  RIGHT TRIGGER FOR A REMATCH"
+            : "AI WINS.  RIGHT TRIGGER FOR A REMATCH");
     }
 
     private void SetScore(int playerScore, int aiScore)
